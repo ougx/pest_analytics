@@ -1,0 +1,9 @@
+*.bak
+*.exe
+*.7z
+sspaPlot/.spyproject/
+*.pyc
+.vscode/
+*.html
+__pycache__
+autotest/*

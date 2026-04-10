@@ -1,0 +1,206 @@
+
+
+import plotly.graph_objects as go
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import dash
+from dash import dcc, html, Input, Output, State, callback, no_update
+import dash_mantine_components as dmc
+from utils import parse_zip, isiterable
+from plotting import palettes
+
+
+name = __name__.lstrip("module.") + "-"
+
+# ---------------------------
+# Globals
+# ---------------------------
+value_cols = ["parval", "parvalrel", "parvalrel", "parvalnorm", "parvallognorm"]
+
+
+def check_group(id, label=None, options=["All"], value=None, **kwargs):
+    row = []
+    if label:
+        row.append(dmc.Text(label, fw=500, className="my-auto", style={"minWidth": "100px", "margin-left": "auto"}))
+    row.append(dmc.CheckboxGroup(
+        id=id,
+        children=dmc.Group([dmc.Checkbox(option, value=option) for option in options], mt=10,),
+        value=value or options,
+        persistence=True,
+        **kwargs))
+    return dmc.Group(row)
+
+def ratio_group(id, label=None, options=["All"], **kwargs):
+    row = []
+    if label:
+        row.append(dmc.Text(label, fw=500, className="my-auto", style={"minWidth": "100px"}))
+    row.append(dmc.RadioGroup(
+        id=id,
+        children=dmc.Group([dmc.Radio(k, value=k) for k in options], my=10),
+        value=options[0],
+        persistence=True,
+        **kwargs))
+    return dmc.Group(row)
+
+def chip_group(id, label=None, options=["All"], value=[], multiple=True,  **kwargs):
+    row = []
+    values = value if isiterable(value) else [value]
+    if label:
+        row.append(dmc.Text(label, fw=500, className="my-auto", style={"minWidth": "160px"}))
+    row.append(dmc.ChipGroup(
+        id=id,
+        children=[dmc.Chip(option, value=option, ) for option in options],
+        multiple=multiple,
+        value=value,
+        persistence=True,
+        **kwargs))
+    return dmc.Group(row)
+
+layout = dmc.Stack(
+    [
+        chip_group(name+"valcol"  , options=["Raw", "Relative", "Absolute", "Normalized"], multiple=False, value="Relative", label="Value Type:"),
+        chip_group(name+"pargroup", options=["pargp1", "pargp2", "pargp3"], multiple=True, value=["pargp1", "pargp2", "pargp3"], label="Parameter Group:"),
+        chip_group(name+"partrans", options=["none", "log", "tied", "fixed"], multiple=True, value=["none", "log", "tied"], label="Transformation Type:"),
+        dmc.Group([
+            dmc.Switch(id=name+"nearbound", label="Highlight Near Bound", size="md", color="blue", pb=10, checked=True),
+            dmc.Select(id=name+"bndlimit", label="Bound Limit:", data="100% 99% 98% 95% 90%".split(), value="98%", style={"width": "150px"}),
+        ], mt=10, align="flex-end"),
+        dmc.Group([
+            dmc.Select(id=name+"palette", label="Color Palette:", data=list(palettes.keys()), value="Jet", style={"width": "150px"}),
+            dmc.Select(id=name+"vscale", label="Value Scale:", data=["linear", "log"], value="linear", style={"width": "150px"}),
+            dmc.Select(id=name+"layout", label="Layout:", data=["Horizontal", "Vertical"], value="Horizontal", style={"width": "150px"}),
+            dmc.Button("Plot Parameter", id=name+"update-plot", color="blue"),
+        ], mt=10, align="flex-end"),
+        dcc.Graph(id=name+"plot")
+    ]
+)
+
+# ---------------------------
+# Upload callback
+# ---------------------------
+
+
+# ---------------------------
+# Plot callback
+# ---------------------------
+
+@callback(
+    Output(name+"pargroup", "children"),
+    Output(name+"pargroup", "value"),
+    Input ("pest-data", "data"),
+)
+def upload_pest(data):
+    if data is None or data == {}:
+        return [no_update, no_update]
+    contents = data.get("contents")
+    filename = data.get("filename")
+    pst, par, obs, pars, jcos, reis = parse_zip(contents, False, False, False)
+    if par is None:
+        return [no_update, no_update]
+    else:
+        pargroups = [p for p in par.pargp.unique() if p.strip() != ""]
+        pargroups_chp = [dmc.Chip(p, value=p) for p in pargroups]
+    return [pargroups_chp, pargroups]
+
+@callback(
+    Output(name+"plot", "figure"),
+    Input( name+"update-plot", "n_clicks"),
+    State( "pest-data", "data"),
+    State( name+"valcol", "value"),
+    State( name+"pargroup", "value"),
+    State( name+"partrans", "value"),
+    State( name+"nearbound", "checked"),
+    State(name+"bndlimit", "value"),
+    State(name+"palette", "value"),
+    State(name+"vscale", "value"),
+    State(name+"layout", "value"),
+)
+def update_plot(clicks, data, valcol, pargroup, partrans, nearbound, bndlimit, palette, vscale, layout):
+    # print("pargroup value:", pargroup)
+    if clicks is None or clicks == 0:
+        return px.scatter(title="Upload data and click 'Plot Parameter' to see plot")
+
+    if data is None:
+        return px.scatter(title="Upload data to see plot")
+
+    contents = data.get("contents")
+    filename = data.get("filename")
+
+    pst, par, obs, pars, reis, jcos = parse_zip(contents, True)
+
+    if par is None:
+        return px.scatter(title="No .pst file found in zip")
+
+    if pars is None or len(pars) == 0:
+        return px.scatter(title="No .par file found in zip")
+
+    niter = len(pars)
+    dfs = []
+    bl = float(bndlimit.strip("%"))/100
+    for i in range(niter+1):
+        df = par.set_index("parname")
+        if i == 0:
+            p = par
+            df["Raw"] = p.set_index("parname")["parval0"]
+        else:
+            p = pars[i]
+            df["Raw"] = p.set_index("parname")["parval"]
+        df["Absolute"] = df["Raw"] * df["scale"] + df["offset"]
+        df["Relative"] = df["Raw"] / df["parval0"]
+        df["parvalnorm"] = (df.Raw - df.parlbnd) / (df.parubnd - df.parlbnd)
+        df["parvallognorm"] = (np.log10(df.Raw) - np.log10(df.parlbnd)) / (np.log10(df.parubnd) - np.log10(df.parlbnd))
+        df["Normalized"] = np.where(df.partrans=="log", df.parvallognorm, df.parvalnorm)
+        df["nearbound"] = (df["Normalized"] > bl) | (df["Normalized"] < 1 - bl)
+        df["iteration"] = i
+        dfs.append(df)
+    df = pd.concat(dfs)
+    dff = df[
+        df.pargp.isin(pargroup) &
+        df.partrans.isin(partrans) &
+        # (df.nearbound == nearbound) &
+        True
+    ].reset_index()
+
+    n_par = (dff["iteration"]==0).sum()
+    height = max(600, n_par * 18)
+
+    fig = go.Figure()
+    colors = px.colors.sample_colorscale(palettes[palette], niter+1)
+    for ii, dfi in dff.groupby("iteration"):
+        fig.add_trace(go.Scatter(
+            x=dfi["parname"] if layout=="Horizontal" else dfi[valcol],
+            y=dfi[valcol] if layout=="Horizontal" else dfi["parname"],
+            mode="markers",
+            marker=dict(
+                color=colors[ii],
+                size=8,
+                symbol=np.where(dfi["nearbound"], "diamond" if nearbound else "circle", "circle"),
+            ),
+            name=f"Iteration {ii}"
+        ))
+
+    if layout == "Horizontal":
+        if vscale == "log":
+            fig.update_yaxes(type="log")
+        fig.update_layout(
+            height=700,
+            margin=dict(l=150, r=50, t=50, b=50),
+            xaxis=dict(type="category", automargin=True),
+            xaxis_title="Parameter Name",
+            xaxis_range=[-3, n_par+2],
+            yaxis_title="Parameter " + valcol + " Value",
+        )
+    else:
+        if vscale == "log":
+            fig.update_xaxes(type="log")
+        fig.update_layout(
+            height=height,
+            margin=dict(l=50, r=150, t=50, b=50),
+            yaxis=dict(type="category", automargin=True),
+            xaxis_title="Parameter " + valcol + " Value",
+            yaxis_title="Parameter Name",
+            yaxis_range=[-3, n_par+2],
+        )
+
+    return fig
