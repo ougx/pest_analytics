@@ -31,7 +31,7 @@ md = dcc.Markdown('''
     This can lead to an ill-conditioned or nearly singular system, which may cause instability or failure in parameter updates during calibration.
     To address this issue, highly correlated parameters can be constrained or tied together, reducing redundancy.
     Alternatively, regularization techniques, such as introducing preferred parameter values, can be applied to stabilize the inversion.
-    Finally, adding new observations may also be able separate them.
+    Finally, adding new observations may also be able to separate them.
     ''',
     mathjax=True)
 
@@ -122,7 +122,6 @@ def plot(clicks, data, npar, iiter, highr, palette, invcmap):
         height=750,
         # text_auto=True
     )
-    cor_off = cor - np.identity(len(cor))
 
     cor_off = cor - np.identity(len(cor))
     highcor = cor_off[cor_off.abs()>float(highr)].stack().dropna().reset_index()

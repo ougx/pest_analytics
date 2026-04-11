@@ -185,14 +185,15 @@ def read_pest_zip(zip, loadpar=True, loadrei=False, loadjco=False):
 #%%
 if __name__ == "__main__":
     pst, par, obs, pars, reis, jcos = read_pest_zip(
-        r"c:\Cloud\OneDrive - S.S. Papadopulos & Associates, Inc\1869-SWRCB_Napa\05_Model\NVIHM_SWRCB_NWT_LSPC\PEST\Napa2026_03.zip",
+        r"c:\Cloud\OneDrive - S.S. Papadopulos & Associates, Inc\1869-SWRCB_Napa\05_Model\NVIHM_SWRCB_NWT_LSPC\PEST\zzArchive\napa2026_03.zip",
         True, True, True
         )
     
+   
     def test_parsen():
         stype = "L1 Norm"
         otype = "Observation"
-        parselect = ["kmaxcr01"]
+        parselect = ["kdcr01"]
         
         ddf = {} # aggregated sensitivity
         sdf = {} # (raw)signed sensitivity
@@ -212,15 +213,126 @@ if __name__ == "__main__":
         
         if stype == "L2 Norm":
             ddf = ddf**0.5
-        
-        tot = (ddf / ddf.max(axis=0).values[None,:]).sum(axis=1)
+            
+        tot = (ddf / ddf.median(axis=0).values[None,:]).sum(axis=1)
         tot = tot.sort_values(ascending=False).iloc[:int(nobs)]
         ddf = ddf.loc[tot.index]
         sdf = sdf.loc[tot.index]
-        sdf = np.where(sdf>0, "triangle-up", "triangle-down")
-        print(sdf)
+        sdf = pd.DataFrame(np.where(sdf>0, "triangle-up", "triangle-down"), columns=ddf.columns)
     
         pp = {"Iter 0": par.set_index("parname").loc[parselect, "parval0"]}
         for i, df in pars.items():
             pp[f"Iter {i}"] = df.set_index("parname").loc[parselect, "parval"]
     
+        ddf["Iter 0"] = 0
+        sdf["Iter 0"] = "circle"
+        
+        reis[i].set_index("name").loc[ddf.index, "modelled"].to_string(index=False, header=False).split("\n")
+    
+    def test_parcor():
+        
+        npar = 50
+        iiter = 1
+        highr = 0.9
+        
+        csplimit = 1e-10
+        nobs_useful = (obs.weight > 0).sum()
+    
+        jco0 = jcos[int(iiter)]
+        jco = jco0.loc[jco0.index.isin(obs.obsname), ]
+        WJ = jco * obs.set_index("obsname").loc[jco.index, "weight"].values[:, None]
+        csp = (WJ**2).sum() ** 0.5 / nobs_useful
+        mask = WJ.columns.isin(csp[csp>csplimit].index)
+        JJ = WJ.loc[:,mask]
+        J2 = np.matmul(JJ.T, JJ)
+        try:
+            cov = np.linalg.inv(J2)
+        except:
+            cov = np.linalg.pinv(J2)
+        std = np.sqrt(np.diag(cov))
+        cor = cov / np.outer(std, std)
+        cor = pd.DataFrame(cor, index=J2.columns, columns=J2.columns)
+    
+        rmax = (cor - np.identity(len(cor))).abs().max().sort_values()
+        mask = cor.index.isin(rmax.index[-int(npar):])
+        cor = cor.loc[mask, mask]
+        
+        cor_off = cor - np.identity(len(cor))
+        highcor = cor_off[cor_off.abs()>float(highr)].stack().dropna().reset_index()
+        
+    def test_par_identifiable():
+        svdtrunc = 1e-4
+        csplimit = 1e-10
+        nobs_useful = (obs.weight > 0).sum()
+        jco0 = jcos[1].copy()
+        
+        jco = jco0.loc[jco0.index.isin(obs.obsname), ]
+        WJ = jco * obs.set_index("obsname").loc[jco.index, "weight"].values[:, None]
+        csp = (WJ**2).sum() ** 0.5 / nobs_useful
+        mask = WJ.columns.isin(csp[csp>csplimit].index)
+        JJ = WJ.loc[:,mask]
+        
+        
+        U, s, Vt = np.linalg.svd(JJ, full_matrices=False)
+        sr = s / s[0]
+        V1 = Vt[sr>=svdtrunc]
+    
+        V = pd.DataFrame(V, index=JJ.columns, columns=['eig'+str(i+1) for i in range(ndimpar)])
+        if parnames is not None:
+            V = V.loc[V.index.isin(parnames)]
+            
+            
+            
+        U, s, Vt = np.linalg.svd(JJ, full_matrices=False)
+        def check1():
+            # check s: Rapid decay → ill-conditioning; Very small values → problematic directions
+            condition_number = s[0] / s[-1]
+            
+            print("Singular values:", s)
+            print("Condition number:", s[0] / s[-1])
+        
+        def check2():
+            V = Vt.T
+            #For small 𝜎, look at 𝑣𝑘:
+            k = np.argmin(s)   # worst direction
+            print(V[:, k]) # Which combination of parameters is poorly identifiable
+            
+            vk = V[:, k]            
+            plt.bar(range(len(vk)), vk)
+            plt.xlabel("Parameter index")
+            plt.ylabel("Weight")
+            plt.title(f"Poorly identifiable direction (σ={s[k]:.2e})")
+
+            
+        # Find poorly identifiable combinations
+        threshold = 1e-6 * s[0]
+        
+        for k in range(len(s)):
+            if s[k] < threshold:
+                print(f"\nPoorly identifiable direction {k}:")
+                print(V[:, k])
+
+        plt.imshow(V, aspect='auto')
+
+
+        plt.semilogy(s, 'o-')
+        plt.xlabel("Index")
+        plt.ylabel("Singular value")
+        plt.title("Singular value spectrum")
+        
+        
+        #%% 
+        v1 = V[:, -1]
+        v2 = V[:, -2]
+        
+        # Project identity basis (parameters) into this subspace
+        coords = np.vstack([v1, v2]).T
+        
+        plt.scatter(coords[:,0], coords[:,1])
+        
+        for i in range(len(coords)):
+            plt.text(coords[i,0], coords[i,1], f"p{i}")
+        
+        plt.xlabel("Worst direction")
+        plt.ylabel("2nd worst direction")
+        plt.title("Parameter relationships in poorly identifiable subspace")
