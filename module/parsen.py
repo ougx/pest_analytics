@@ -1,4 +1,3 @@
-import dash
 from dash import html, dcc, Input, Output, State, callback, no_update
 import dash_mantine_components as dmc
 import plotly.express as px
@@ -78,7 +77,7 @@ def upload_pest(data):
         return no_update
     contents = data.get("contents")
     filename = data.get("filename")
-    pst, par, obs, pars, jcos, reis = parse_zip(contents, False, False, False)
+    pst, par, obs, pars, reis, jcos = parse_zip(contents, False, False, False)
     if par is None:
         return no_update
     else:
