@@ -39,7 +39,7 @@ md = dcc.Markdown('''
 #    potential for error is inherited from noise in the measurement dataset.
 
 layout = html.Div([
-    html.H5(fullname),
+    html.H3(fullname),
     md,
     dmc.Group([
         dmc.Select(id=name+"iter", label="Iteration:", data=["1"], value="1", style={"width": "150px"}),
@@ -47,7 +47,7 @@ layout = html.Div([
         dmc.Select(id=name+"layout", label="Layout:", data=["Horizontal", "Vertical"], value="Vertical", style={"width": "150px"}),
         dmc.Button("Plot Identifiability", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
-    dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, ))),
+    dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
 ])
 
 
@@ -79,9 +79,9 @@ def upload_pest(data):
 )
 def plot(clicks, data, iiter, svdtrunc, layout):
     if clicks is None or clicks == 0:
-        return px.scatter(title="Upload data and click 'Plot Parameter' to see plot")
+        return px.scatter(title="Upload data and click 'Plot Identifiability' to see plot")
     if data is None or data == {}:
-        return no_update
+        return px.scatter(title="No data uploaded. Please upload data and click 'Plot Identifiability' to see plot")
     contents = data.get("contents")
     filename = data.get("filename")
     pst, par, obs, pars, reis, jcos = parse_zip(contents, False, False, True)

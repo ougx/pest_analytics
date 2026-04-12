@@ -37,7 +37,7 @@ md = dcc.Markdown('''
 
 
 layout = html.Div([
-    html.H5(fullname),
+    html.H3(fullname),
     md,
     dmc.Group([
         dmc.Select(id=name+"npar", label="Number of Parameters:", data=["5", "10", "20", "30", "40", "50", "100"], value="40", style={"width": "150px"}),
@@ -47,7 +47,7 @@ layout = html.Div([
         dmc.Switch(id=name+"invcmap", label="Inverse colormap", checked=True, style={"width": "150px"}),
         dmc.Button("Plot Correlation", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
-    dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, ))),
+    dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
 ])
 
 
@@ -81,9 +81,9 @@ def upload_pest(data):
 )
 def plot(clicks, data, npar, iiter, highr, palette, invcmap):
     if clicks is None or clicks == 0:
-        return px.scatter(title="Upload data and click 'Plot Parameter' to see plot")
+        return px.scatter(title="Upload data and click 'Plot Correlation' to see plot")
     if data is None or data == {}:
-        return no_update
+        return px.scatter(title="No data uploaded. Please upload data and click 'Plot Correlation' to see plot")
     contents = data.get("contents")
     filename = data.get("filename")
     pst, par, obs, pars, reis, jcos = parse_zip(contents, False, False, True)
@@ -111,7 +111,7 @@ def plot(clicks, data, npar, iiter, highr, palette, invcmap):
     cor = cov / np.outer(std, std)
     cor = pd.DataFrame(cor, index=J2.columns, columns=J2.columns)
 
-    rmax = (cor - np.identity(len(cor))).abs().max().sort_values()
+    rmax = (cor - np.identity(len(cor))).abs().max().dropna().sort_values()
     mask = cor.index.isin(rmax.index[-int(npar):])
     cor = cor.loc[mask, mask]
     fig = px.imshow(
@@ -139,9 +139,10 @@ def plot(clicks, data, npar, iiter, highr, palette, invcmap):
         ))
     fig.update_layout(
         xaxis=dict(tickangle=90),
-        coloraxis_colorbar=dict(
+        coloraxis=dict(cmin=-1, cmax=1,colorbar=dict(
             x=0.93,
             title=dict(text="Parameter Correlation", side="right"),
-        )
+        ))
     )
+    fig.update_yaxes(autorange="reversed")
     return fig

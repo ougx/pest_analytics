@@ -14,7 +14,7 @@ documentation: https://dash.plotly.com/urls
 import dash
 import dash_mantine_components as dmc
 from dash import Input, Output, dcc, html, callback, State
-from module import phiupdate, parupdate, parsen, parcor, obssen, parident, uploadpest, obssim, obsinfl
+from module import apps
 
 
 stylesheets = [
@@ -52,19 +52,6 @@ sspa_logo = dmc.Anchor(dmc.Image(
     href="https://www.sspa.com",
 )
 
-apps = {
-    "uploadpest":"Upload Data",
-    "phiupdate":"Phi Evolution",
-    "parupdate":"Parameter Evolution",
-    "parcor":"Parameter Correlation",
-    "parsen":"Parameter Sensitivity",
-    "parident":"Parameter Identifiability",
-    "obssen":"Observation Sensitivity",
-    "obssim":"Observation Similarity",
-    "obsinfl":"Observation Influence",
-}
-
-
 layout = dmc.AppShell(
     [
         dmc.AppShellHeader(dmc.Group([sspa_logo, dmc.Title('PEST_ANALYTICS', order=2)]), px=80, py=10),
@@ -78,11 +65,11 @@ layout = dmc.AppShell(
         #     p="md",
         # ),
         dmc.AppShellMain([
-            html.H4('This is Status', id="home-status", style={"padding-left": 205}),
+
             dmc.Tabs(
                 [
-                    dmc.TabsList([dmc.TabsTab(v, value=k, size="large", style={"display": "block"}) for k, v in apps.items()] ),] + [
-                    dmc.TabsPanel(eval(k+".layout"), value=k, id="tab-"+k, style={"padding-left":20}) for k, v in apps.items()
+                    dmc.TabsList([dmc.TabsTab(v.fullname, value=k, size="large", style={"display": "block"}) for k, v in apps.items()] ),] + [
+                    dmc.TabsPanel(v.layout, value=k, id="tab-"+k, style={"padding-left":20}) for k, v in apps.items()
                 ],
                 # color="red", # default is blue
                 orientation="vertical", # or "vertical"
@@ -91,6 +78,7 @@ layout = dmc.AppShell(
                 id="main-tabs",
             ),
         ]),
+        dmc.AppShellFooter(html.H4('This is Status', id="home-status", style={"padding-left": 205}), p="md"),
     ],
     header={
         "height": {"base": 60, "md": 70, "lg": 80},

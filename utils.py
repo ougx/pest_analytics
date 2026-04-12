@@ -4,6 +4,7 @@ import zipfile
 import pandas as pd
 import numpy as np
 from collections.abc import Iterable
+import matplotlib.pyplot as plt
 
 def isiterable(obj):
     return isinstance(obj, Iterable) and not isinstance(obj, str)
@@ -185,16 +186,84 @@ def read_pest_zip(zip, loadpar=True, loadrei=False, loadjco=False):
 #%%
 if __name__ == "__main__":
     pst, par, obs, pars, reis, jcos = read_pest_zip(
-        r"c:\Cloud\OneDrive - S.S. Papadopulos & Associates, Inc\1869-SWRCB_Napa\05_Model\NVIHM_SWRCB_NWT_LSPC\PEST\zzArchive\napa2026_03.zip",
+        r"c:\Cloud\OneDrive - S.S. Papadopulos & Associates, Inc\1869-SWRCB_Napa\05_Model\NVIHM_SWRCB_NWT_LSPC\PEST\napa2026_04.zip",
         True, True, True
         )
+
+    www
+    def test_leverage():
+        from pst import get_weighted_jco
+        iiter = 1
+        jco0 = jcos[int(iiter)]
+        WJ = get_weighted_jco(obs, jco0)
+        
+        H = (WJ @ np.linalg.pinv(WJ.T @ WJ)).values @ WJ.T
     
-   
+        leverage = np.diag(H)
+        sensitivity = np.sqrt(np.diag(WJ @ WJ.T))
+    
+        rei = reis[int(iiter)]
+        rei = rei.set_index("name").loc[WJ.index]
+        r  = rei.residual
+        rw = rei.residual * rei.weight
+    
+        sigma2 = np.sum(rw**2) / (len(r) - WJ.shape[1])
+        std_res = r / np.sqrt(sigma2 * (1 - leverage))
+    
+        rr = pd.DataFrame(dict(
+            Observed=rei.measured,
+            Simulated=rei.modelled,        
+            Residual=r,
+            Weight=rei.weight,
+            Sensitivity=sensitivity
+        ))
+        text = [f"{i}<br>"+r.to_string().replace("\n", "<br>") for i, r in rr.iterrows()]
+        
+    def test_obssen():
+        
+        stype = "L2 Norm"
+        obsselect = ["napar_napa200909"]
+        otype = "Observations"
+        
+        ddf = {} # aggregated sensitivity
+        sdf = {} # (raw)signed sensitivity
+        if otype == "Observations":
+            oo = obs[obs["obsname"].isin(obsselect)]
+        else:
+            oo = obs[obs["group"].isin(obsselect)]
+    
+        for i, jco0 in jcos.items():
+            df = pd.merge(jco0, oo, left_index=True, right_on="obsname")
+            df.set_index("obsname", inplace=True)
+            sdf[f"Iter {i}"] = (df["weight"].values[:, None] * df).sum(axis=0)
+            if stype == "L1 Norm":
+                ddf[f"Iter {i}"] =  (df["weight"].values[:, None] * df .abs()).sum(axis=0)
+            else:
+                ddf[f"Iter {i}"] = ((df["weight"].values[:, None] * df)**2).sum(axis=0)
+        sdf = pd.DataFrame(sdf, )
+        ddf = pd.DataFrame(ddf, )
+    
+        if stype == "L2 Norm":
+            ddf = ddf**0.5
+    
+        tot = (ddf / ddf.max(axis=0).values[None,:]).sum(axis=1)
+        tot = tot.sort_values(ascending=False).iloc[:int(nobs)]
+        ddf = ddf.loc[tot.index]
+        sdf = sdf.loc[tot.index]
+        sdf = pd.DataFrame(np.where(sdf>0, "triangle-up", "triangle-down"), columns=ddf.columns)
+    
+        pp = {"Iter 0": par.set_index("parname").loc[obsselect, "parval0"]}
+        for i, df in pars.items():
+            pp[f"Iter {i}"] = df.set_index("parname").loc[obsselect, "parval"]
+    
+        ddf["Iter 0"] = 0
+        sdf["Iter 0"] = "circle"
+        
     def test_parsen():
         stype = "L1 Norm"
         otype = "Observation"
         parselect = ["kdcr01"]
-        
+
         ddf = {} # aggregated sensitivity
         sdf = {} # (raw)signed sensitivity
         nobs = 20
@@ -210,34 +279,34 @@ if __name__ == "__main__":
         ddf = pd.DataFrame(ddf, )
         if otype == "Obs Groups":
             ddf = ddf.groupby(obs.set_index("obsname").loc[ddf.index, "obsgp"]).sum()
-        
+
         if stype == "L2 Norm":
             ddf = ddf**0.5
-            
+
         tot = (ddf / ddf.median(axis=0).values[None,:]).sum(axis=1)
         tot = tot.sort_values(ascending=False).iloc[:int(nobs)]
         ddf = ddf.loc[tot.index]
         sdf = sdf.loc[tot.index]
         sdf = pd.DataFrame(np.where(sdf>0, "triangle-up", "triangle-down"), columns=ddf.columns)
-    
+
         pp = {"Iter 0": par.set_index("parname").loc[parselect, "parval0"]}
         for i, df in pars.items():
             pp[f"Iter {i}"] = df.set_index("parname").loc[parselect, "parval"]
-    
+
         ddf["Iter 0"] = 0
         sdf["Iter 0"] = "circle"
-        
+
         reis[i].set_index("name").loc[ddf.index, "modelled"].to_string(index=False, header=False).split("\n")
-    
+
     def test_parcor():
-        
+
         npar = 50
         iiter = 1
         highr = 0.9
-        
+
         csplimit = 1e-10
         nobs_useful = (obs.weight > 0).sum()
-    
+
         jco0 = jcos[int(iiter)]
         jco = jco0.loc[jco0.index.isin(obs.obsname), ]
         WJ = jco * obs.set_index("obsname").loc[jco.index, "weight"].values[:, None]
@@ -252,61 +321,61 @@ if __name__ == "__main__":
         std = np.sqrt(np.diag(cov))
         cor = cov / np.outer(std, std)
         cor = pd.DataFrame(cor, index=J2.columns, columns=J2.columns)
-    
+
         rmax = (cor - np.identity(len(cor))).abs().max().sort_values()
         mask = cor.index.isin(rmax.index[-int(npar):])
         cor = cor.loc[mask, mask]
-        
+
         cor_off = cor - np.identity(len(cor))
         highcor = cor_off[cor_off.abs()>float(highr)].stack().dropna().reset_index()
-        
+
     def test_par_identifiable():
         svdtrunc = 1e-4
         csplimit = 1e-10
         nobs_useful = (obs.weight > 0).sum()
         jco0 = jcos[1].copy()
-        
+
         jco = jco0.loc[jco0.index.isin(obs.obsname), ]
         WJ = jco * obs.set_index("obsname").loc[jco.index, "weight"].values[:, None]
         csp = (WJ**2).sum() ** 0.5 / nobs_useful
         mask = WJ.columns.isin(csp[csp>csplimit].index)
         JJ = WJ.loc[:,mask]
-        
-        
+
+
         U, s, Vt = np.linalg.svd(JJ, full_matrices=False)
         sr = s / s[0]
         V1 = Vt[sr>=svdtrunc]
-    
+
         V = pd.DataFrame(V, index=JJ.columns, columns=['eig'+str(i+1) for i in range(ndimpar)])
         if parnames is not None:
             V = V.loc[V.index.isin(parnames)]
-            
-            
-            
+
+
+
         U, s, Vt = np.linalg.svd(JJ, full_matrices=False)
         def check1():
             # check s: Rapid decay → ill-conditioning; Very small values → problematic directions
             condition_number = s[0] / s[-1]
-            
+
             print("Singular values:", s)
             print("Condition number:", s[0] / s[-1])
-        
+
         def check2():
             V = Vt.T
             #For small 𝜎, look at 𝑣𝑘:
             k = np.argmin(s)   # worst direction
             print(V[:, k]) # Which combination of parameters is poorly identifiable
-            
-            vk = V[:, k]            
+
+            vk = V[:, k]
             plt.bar(range(len(vk)), vk)
             plt.xlabel("Parameter index")
             plt.ylabel("Weight")
             plt.title(f"Poorly identifiable direction (σ={s[k]:.2e})")
 
-            
+
         # Find poorly identifiable combinations
         threshold = 1e-6 * s[0]
-        
+
         for k in range(len(s)):
             if s[k] < threshold:
                 print(f"\nPoorly identifiable direction {k}:")
@@ -319,20 +388,20 @@ if __name__ == "__main__":
         plt.xlabel("Index")
         plt.ylabel("Singular value")
         plt.title("Singular value spectrum")
-        
-        
-        #%% 
+
+
+        #%%
         v1 = V[:, -1]
         v2 = V[:, -2]
-        
+
         # Project identity basis (parameters) into this subspace
         coords = np.vstack([v1, v2]).T
-        
+
         plt.scatter(coords[:,0], coords[:,1])
-        
+
         for i in range(len(coords)):
             plt.text(coords[i,0], coords[i,1], f"p{i}")
-        
+
         plt.xlabel("Worst direction")
         plt.ylabel("2nd worst direction")
         plt.title("Parameter relationships in poorly identifiable subspace")

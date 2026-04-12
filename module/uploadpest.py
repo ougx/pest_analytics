@@ -4,6 +4,7 @@ import dash_mantine_components as dmc
 from utils import parse_zip
 
 name = __name__.lstrip("module.") + "-"
+fullname = "Upload Data"
 
 
 upload = dcc.Upload(

@@ -12,7 +12,7 @@ from plotting import palettes
 
 
 name = __name__.lstrip("module.") + "-"
-
+fullname = "Parameter Evolution"
 # ---------------------------
 # Globals
 # ---------------------------
@@ -72,7 +72,7 @@ layout = dmc.Stack(
             dmc.Select(id=name+"layout", label="Layout:", data=["Horizontal", "Vertical"], value="Horizontal", style={"width": "150px"}),
             dmc.Button("Plot Parameter", id=name+"update-plot", color="blue"),
         ], mt=10, align="flex-end"),
-        dcc.Graph(id=name+"plot")
+        dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
     ]
 )
 

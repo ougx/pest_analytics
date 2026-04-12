@@ -10,10 +10,12 @@ from plotly.subplots import make_subplots
 # dash.register_page(__name__, path='/')
 
 name = __name__.lstrip("module.") + "-"
+fullname = "Phi Evolution"
 
 layout = dmc.Stack(
     [
-        dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, ))), #
+        dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
+
     ]
 )
 

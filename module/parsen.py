@@ -48,7 +48,7 @@ data = [
     {"group": "vk", "items": ["vk1", "vk2"]}
 ]
 layout = html.Div([
-    html.H5(fullname),
+    html.H3(fullname),
     md,
     dmc.Group([
         dmc.Select(id=name+"stype", label="Sensitivity Type:", data=["L1 Norm", "L2 Norm"], value="L2 Norm", style={"width": "150px"}),
@@ -56,7 +56,7 @@ layout = html.Div([
                    data=["Observations", "Obs Groups"], value="Observations", style={"width": "150px"}),
         dmc.Select(id=name+"nobs", label="Number of Observations:", data=["5", "10", "20", "30", "40", "50"], value="50", style={"width": "150px"}),
         dmc.Select(id=name+"palette", label="Color Palette:", data=list(palettes.keys()), value="Jet", style={"width": "150px"}),
-        dmc.Button("Plot Parameter", id=name+"update-plot", color="blue"),
+        dmc.Button("Plot Sensitivity", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
     dmc.MultiSelect(
         label="Select parameter to analyze sensitivity:",
@@ -65,7 +65,7 @@ layout = html.Div([
         data=data,
         mb=10,
     ),
-    dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, ))),
+    dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
 ])
 
 @callback(
@@ -99,16 +99,22 @@ def upload_pest(data):
 )
 def plot(clicks, data, stype, otype, nobs, palette, parselect):
     if clicks is None or clicks == 0:
-        return px.scatter(title="Upload data and click 'Plot Parameter' to see plot")
+        return px.scatter(title="Upload data and click 'Plot Sensitivity' to see plot")
     if data is None or data == {}:
-        return no_update
+        return px.scatter(title="No data uploaded. Please upload data and click 'Plot Sensitivity' to see plot")
     contents = data.get("contents")
     filename = data.get("filename")
     pst, par, obs, pars, reis, jcos = parse_zip(contents, True, True, True)
     if par is None:
-        return no_update
+        return px.scatter(title="No .pst file found in zip")
+    if not pars:
+        return px.scatter(title="No .par file found in zip")
+    if not jcos:
+        return px.scatter(title="No .jco file found in zip")
+    if not reis:
+        return px.scatter(title="No .rei file found in zip")
     if not parselect:
-        return no_update
+        return px.scatter(title="No parameter is selected.")
     if not isiterable(parselect):
         parselect = [parselect]
 
