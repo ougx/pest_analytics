@@ -198,26 +198,30 @@ if __name__ == "__main__":
         WJ = get_weighted_jco(obs, jco0)
         
         H = (WJ @ np.linalg.pinv(WJ.T @ WJ)).values @ WJ.T
-    
-        leverage = np.diag(H)
-        sensitivity = np.sqrt(np.diag(WJ @ WJ.T))
-    
-        rei = reis[int(iiter)]
-        rei = rei.set_index("name").loc[WJ.index]
-        r  = rei.residual
-        rw = rei.residual * rei.weight
-    
-        sigma2 = np.sum(rw**2) / (len(r) - WJ.shape[1])
-        std_res = r / np.sqrt(sigma2 * (1 - leverage))
-    
-        rr = pd.DataFrame(dict(
-            Observed=rei.measured,
-            Simulated=rei.modelled,        
-            Residual=r,
-            Weight=rei.weight,
-            Sensitivity=sensitivity
-        ))
-        text = [f"{i}<br>"+r.to_string().replace("\n", "<br>") for i, r in rr.iterrows()]
+
+    leverage = np.diag(H)
+    sensitivity = np.sqrt(np.diag(WJ @ WJ.T))
+
+    rei = reis[int(iiter)]
+    rei = rei.set_index("name").loc[WJ.index]
+    r  = rei.residual
+    rw = rei.residual * rei.weight
+
+    sigma2 = np.sum(rw**2) / (len(r) - WJ.shape[1])
+    std_res = r / np.sqrt(sigma2 * (1 - leverage))
+
+    rr = pd.DataFrame(dict(
+        Observed=rei.measured,
+        Simulated=rei.modelled,
+        Residual=r,
+        Weight=rei.weight,
+        Sensitivity=sensitivity,
+        Leverage=leverage,
+        Std_Residual=std_res,
+        ObsGroup=rei.group,
+    ))
+    rr["text"] = [f"{i}<br>"+r.to_string().replace("\n", "<br>") for i, r in rr.iterrows()]
+
         
     def test_obssen():
         

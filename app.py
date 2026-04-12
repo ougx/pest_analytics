@@ -78,7 +78,7 @@ layout = dmc.AppShell(
                 id="main-tabs",
             ),
         ]),
-        dmc.AppShellFooter(html.H4('This is Status', id="home-status", style={"padding-left": 205}), p="md"),
+        dmc.AppShellFooter(html.Div(html.B('This is Status', id="home-status"), style={"padding-left": 205}), ),
     ],
     header={
         "height": {"base": 60, "md": 70, "lg": 80},

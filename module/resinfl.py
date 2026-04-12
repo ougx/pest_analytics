@@ -187,10 +187,15 @@ def plot(clicks, data, iiter, palette, invcmap, xscale, yscale, ): # obsgrp
         height=700,
         xaxis_title="Observation Leverage",
         yaxis_title="Absolute Standardized Residual",
+        hoverlabel=dict(
+            font_family="Monospace"
+        )
     )
     if xscale == "Log":
         fig.update_xaxes(type="log")
     if yscale == "Log":
         fig.update_yaxes(type="log")
+
+
 
     return fig

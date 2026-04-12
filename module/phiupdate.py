@@ -12,10 +12,19 @@ from plotly.subplots import make_subplots
 name = __name__.lstrip("module.") + "-"
 fullname = "Phi Evolution"
 
+
+md = dcc.Markdown('''
+
+    This page investigates Phi update.
+
+    ''',
+    mathjax=True)
+
 layout = dmc.Stack(
     [
+        html.H3(fullname),
+        md,
         dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
-
     ]
 )
 

@@ -13,6 +13,15 @@ from plotting import palettes
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Parameter Evolution"
+
+
+md = dcc.Markdown('''
+
+    This page investigates Parameter update.
+
+    ''',
+    mathjax=True)
+
 # ---------------------------
 # Globals
 # ---------------------------
@@ -59,6 +68,8 @@ def chip_group(id, label=None, options=["All"], value=[], multiple=True,  **kwar
 
 layout = dmc.Stack(
     [
+        html.H3(fullname),
+        md,
         chip_group(name+"valcol"  , options=["Raw", "Relative", "Absolute", "Normalized"], multiple=False, value="Relative", label="Value Type:"),
         chip_group(name+"pargroup", options=["pargp1", "pargp2", "pargp3"], multiple=True, value=["pargp1", "pargp2", "pargp3"], label="Parameter Group:"),
         chip_group(name+"partrans", options=["none", "log", "tied", "fixed"], multiple=True, value=["none", "log", "tied"], label="Transformation Type:"),
@@ -200,7 +211,7 @@ def update_plot(clicks, data, valcol, pargroup, partrans, nearbound, bndlimit, p
             yaxis=dict(type="category", automargin=True),
             xaxis_title="Parameter " + valcol + " Value",
             yaxis_title="Parameter Name",
-            yaxis_range=[-3, n_par+2],
+            yaxis_range=[n_par+2, -3,],
         )
 
     return fig
