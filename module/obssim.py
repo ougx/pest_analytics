@@ -4,8 +4,9 @@ import plotly.graph_objects as go
 import plotly.express as px
 import numpy as np
 import pandas as pd
-from utils import parse_zip, isiterable
-from pst import get_obssim, get_obscor
+from utils import parse_zip
+from pst import get_obssim
+from layout import update_niter
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Observation Similarity"
@@ -46,22 +47,13 @@ layout = html.Div([
 ])
 
 
-
-
 @callback(
     Output(name+"iter", "data"),
     Input( "pest-data", "data"),
 )
 def upload_pest(data):
-    if data is None or data == {}:
-        return no_update
-    contents = data.get("contents")
-    filename = data.get("filename")
-    pst, par, obs, pars, reis, jcos = parse_zip(contents, False, False, True)
-    if jcos is {}:
-        return no_update
-    else:
-        return [str(i) for i in jcos.keys()]
+    return update_niter(data, True)
+
 
 
 @callback(
@@ -80,9 +72,7 @@ def plot(clicks, data, nobs, iiter, highr, palette, invcmap, normalized):
         return px.scatter(title="Upload data and click 'Plot Similarity' to see plot")
     if data is None or data == {}:
         return px.scatter(title="No data uploaded. Please upload data and click 'Plot Similarity' to see plot")
-    contents = data.get("contents")
-    filename = data.get("filename")
-    pst, par, obs, pars, reis, jcos = parse_zip(contents, False, False, True)
+    pst, par, obs, pars, reis, jcos = parse_zip(data, False, False, True)
     if obs is None:
         return px.scatter(title="No .pst file found in zip file.")
     if jcos is {}:
@@ -98,7 +88,7 @@ def plot(clicks, data, nobs, iiter, highr, palette, invcmap, normalized):
     mask = So.index.isin(rmax.index[-int(nobs):])
 
     SS = Sc.loc[mask, mask] if normalized else So.loc[mask, mask]
-    print(SS)
+    # print(SS)
     fig = px.imshow(
         SS,
         color_continuous_scale=palette + ('_r' if invcmap else ""),
@@ -110,7 +100,7 @@ def plot(clicks, data, nobs, iiter, highr, palette, invcmap, normalized):
 
     ScOff = ScOff.loc[mask, mask]
     highcor = ScOff[ScOff>float(highr)].stack().dropna().reset_index()
-    print(highcor)
+    # print(highcor)
     if len(highcor):
         par1 = highcor.iloc[:, 0].tolist() + highcor.iloc[:, 1].tolist()
         par2 = highcor.iloc[:, 1].tolist() + highcor.iloc[:, 0].tolist()

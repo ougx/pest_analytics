@@ -42,7 +42,8 @@ app = dash.Dash(
     # use_pages=True,
     external_scripts=scripts,
     external_stylesheets=stylesheets,
-    suppress_callback_exceptions=True
+    suppress_callback_exceptions=True,
+    prevent_initial_callbacks=True,
 )
 
 sspa_logo = dmc.Anchor(dmc.Image(

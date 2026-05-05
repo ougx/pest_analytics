@@ -6,6 +6,7 @@ import plotly.express as px
 from utils import parse_zip
 import plotly.graph_objects as go
 from pst import get_weighted_jco
+from layout import update_groups, update_weights
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Residual Analysis"
@@ -56,7 +57,11 @@ layout = html.Div([
     md,
     dmc.Group([
         dmc.Select(id=name+"iter", label="Iteration:", data=["1"], value="1", style={"width": "150px"}),
-        dmc.Select(id=name+"palette", label="Color Palette:", data=["Jet","Plotly3","Viridis","BrBG","RdBu","RdYlBu"], value="RdYlBu", style={"width": "150px"}),
+        dmc.Select(id=name+"grp"   , label="Grouped by:" , data=["obsgrp"], value="obsgrp", style={"width": "150px"}),
+        dmc.Select(id=name+"weight", label="Weighted by:", data=["weight"], value="weight", style={"width": "150px"}),
+    ], mt=10, align="flex-end"),
+    dmc.Group([
+        dmc.Select(id=name+"palette", label="Color Palette:", data=["Jet","Plotly3","Viridis","BrBG","RdBu","RdYlBu"], value="Jet", style={"width": "150px"}),
         dmc.Switch(id=name+"invcmap", label="Inverse colormap", checked=True, style={"width": "150px"}),
         dmc.Select(id=name+"xscale", label="X Scale:", data=["Linear", "Log"], value="Log", style={"width": "150px"}),
         dmc.Select(id=name+"yscale", label="Y Scale:", data=["Linear", "Log"], value="Linear", style={"width": "150px"}),
@@ -68,6 +73,7 @@ layout = html.Div([
     #     value=[],
     #     data=["obs1", "obs2", ],
     #     mb=10,
+    #     searchable=True,
     # ),
     dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
 ])
@@ -84,7 +90,7 @@ layout = html.Div([
 #         return no_update
 #     contents = data.get("contents")
 #     filename = data.get("filename")
-#     pst, par, obs, pars, reis, jcos = parse_zip(contents, False, False, False)
+#     pst, par, obs, pars, reis, jcos = parse_zip(data, False, False, False)
 #     if obs is None:
 #         return no_update
 #     else:
@@ -101,11 +107,21 @@ def upload_pest(data):
         return no_update
     contents = data.get("contents")
     filename = data.get("filename")
-    pst, par, obs, pars, reis, jcos = parse_zip(contents, False, False, True)
-    if jcos is {}:
-        return no_update
-    else:
+    pst, par, obs, pars, reis, jcos = parse_zip(data, False, False, True)
+    if pst and jcos:
         return [str(i) for i in jcos.keys()]
+    else:
+        return no_update
+
+@callback(
+    Output(name+"grp"   , "data"),
+    Output(name+"grp"   , "value"),
+    Output(name+"weight", "data"),
+    Output(name+"weight", "value"),
+    Input( "pest-data", "data"),
+)
+def upload_grp_weight(data):
+    return update_groups(data, "grpType") + update_weights(data, "weight")
 
 
 @callback(
@@ -113,20 +129,20 @@ def upload_pest(data):
     Input( name+"update-plot", "n_clicks"),
     State( "pest-data", "data"),
     State( name+"iter", "value"),
+    State( name+"grp", "value"),
+    State( name+"weight", "value"),
     State( name+"palette", "value"),
     State(name+"invcmap", "checked"),
     State(name+"xscale", "value"),
     State(name+"yscale", "value"),
     # State(name+"obsgrp", "value"),
 )
-def plot(clicks, data, iiter, palette, invcmap, xscale, yscale, ): # obsgrp
+def plot(clicks, data, iiter, grp, weight, palette, invcmap, xscale, yscale, ): # obsgrp
     if clicks is None or clicks == 0:
         return px.scatter(title="Upload data and click 'Plot Residual' to see plot")
     if data is None or data == {}:
         return px.scatter(title="No data uploaded. Please upload data and click 'Plot Residual' to see plot")
-    contents = data.get("contents")
-    filename = data.get("filename")
-    pst, par, obs, pars, reis, jcos = parse_zip(contents, False, True, True)
+    pst, par, obs, pars, reis, jcos = parse_zip(data, False, True, True)
     if obs is None:
         return px.scatter(title="No .pst file found in zip file.")
     if jcos is {}:
@@ -135,7 +151,7 @@ def plot(clicks, data, iiter, palette, invcmap, xscale, yscale, ): # obsgrp
         return px.scatter(title="No .rei file found in zip file.")
 
     jco0 = jcos[int(iiter)]
-    WJ = get_weighted_jco(obs, jco0)
+    WJ = get_weighted_jco(obs, jco0, weight_col=weight, )
 
 
     H = (WJ @ np.linalg.pinv(WJ.T @ WJ)).values @ WJ.T
@@ -144,9 +160,9 @@ def plot(clicks, data, iiter, palette, invcmap, xscale, yscale, ): # obsgrp
     sensitivity = np.sqrt(np.diag(WJ @ WJ.T))
 
     rei = reis[int(iiter)]
-    rei = rei.set_index("name").loc[WJ.index]
+    rei = rei.set_index("obsname").loc[WJ.index]
     r  = rei.residual
-    rw = rei.residual * rei.weight
+    rw = rei.residual * rei[weight]
 
     sigma2 = np.sum(rw**2) / (len(r) - WJ.shape[1])
     std_res = r / np.sqrt(sigma2 * (1 - leverage))
@@ -155,11 +171,11 @@ def plot(clicks, data, iiter, palette, invcmap, xscale, yscale, ): # obsgrp
         Observed=rei.measured,
         Simulated=rei.modelled,
         Residual=r,
-        Weight=rei.weight,
+        Weight=rei[weight],
         Sensitivity=sensitivity,
         Leverage=leverage,
         Std_Residual=std_res,
-        ObsGroup=rei.group,
+        ObsGroup=rei[grp],
     ))
     rr["text"] = [f"{i}<br>"+r.to_string().replace("\n", "<br>") for i, r in rr.iterrows()]
 

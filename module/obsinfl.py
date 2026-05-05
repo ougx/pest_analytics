@@ -3,6 +3,7 @@ import pandas as pd
 from dash import html, dcc, Input, Output, State, callback, no_update
 import dash_mantine_components as dmc
 import plotly.express as px
+import plotly.graph_objects as go
 from utils import parse_zip
 
 name = __name__.lstrip("module.") + "-"
@@ -54,13 +55,11 @@ layout = html.Div([
 def upload_pest(data):
     if data is None or data == {}:
         return no_update
-    contents = data.get("contents")
-    filename = data.get("filename")
-    pst, par, obs, pars, reis, jcos = parse_zip(contents, False, False, True)
-    if jcos is {}:
+    pst, par, obs, pars, jcos, reis = parse_zip(data, True, False, False)
+    if pars is {}:
         return no_update
     else:
-        return [str(i) for i in jcos.keys()]
+        return [str(i) for i in pars.keys()]
 
 
 @callback(
@@ -76,9 +75,7 @@ def plot(clicks, data, iiter, svdtrunc, layout):
         return px.scatter(title="Upload data and click 'Plot Identifiability' to see plot")
     if data is None or data == {}:
         return px.scatter(title="No data uploaded. Please upload data and click 'Plot Identifiability' to see plot")
-    contents = data.get("contents")
-    filename = data.get("filename")
-    pst, par, obs, pars, reis, jcos = parse_zip(contents, False, False, True)
+    pst, par, obs, pars, reis, jcos = parse_zip(data, False, False, True)
     if obs is None:
         return px.scatter(title="No .pst file found in zip file.")
     if jcos is {}:

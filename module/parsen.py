@@ -7,6 +7,7 @@ from utils import parse_zip, isiterable
 import pandas as pd
 import numpy as np
 from plotly.subplots import make_subplots
+from layout import update_groups
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Parameter Sensitivity"
@@ -54,7 +55,8 @@ layout = html.Div([
         dmc.Select(id=name+"stype", label="Sensitivity Type:", data=["L1 Norm", "L2 Norm"], value="L2 Norm", style={"width": "150px"}),
         dmc.Select(id=name+"otype", label="Observation Type:",
                    data=["Observations", "Obs Groups"], value="Observations", style={"width": "150px"}),
-        dmc.Select(id=name+"nobs", label="Number of Observations:", data=["5", "10", "20", "30", "40", "50"], value="50", style={"width": "150px"}),
+        dmc.Select(id=name+"grp"   , label="Grouped by:" , data=["obsgrp"], value="obsgrp", style={"width": "150px"}),
+        dmc.Select(id=name+"nobs", label="# of Obs/Grp:", data=["5", "10", "20", "30", "40", "50"], value="50", style={"width": "150px"}),
         dmc.Select(id=name+"palette", label="Color Palette:", data=list(palettes.keys()), value="Jet", style={"width": "150px"}),
         dmc.Button("Plot Sensitivity", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
@@ -64,28 +66,29 @@ layout = html.Div([
         value=[],
         data=data,
         mb=10,
+        searchable=True,
     ),
     dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
 ])
 
 @callback(
     Output(name+"parselect", "data"),
+    Output(name+"grp"   , "data"),
+    Output(name+"grp"   , "value"),
     Input ("pest-data", "data"),
 )
 def upload_pest(data):
     if data is None or data == {}:
         return no_update
-    contents = data.get("contents")
-    filename = data.get("filename")
-    pst, par, obs, pars, reis, jcos = parse_zip(contents, False, False, False)
+    pst, par, obs, pars, reis, jcos = parse_zip(data, False, False, False)
     if par is None:
-        return no_update
+        return [no_update, no_update, no_update]
     else:
         pp = par[par.partrans.isin(["log", "none"])]
         data = []
-        for gp, df in pp.groupby("pargp"):
+        for gp, df in pp.groupby("pargrp"):
             data.append({"group": gp, "items": df.parname.tolist()})
-    return data
+    return [data] + update_groups(data, "obsgrp")
 
 @callback(
     Output(name+"plot", "figure"),
@@ -102,9 +105,7 @@ def plot(clicks, data, stype, otype, nobs, palette, parselect):
         return px.scatter(title="Upload data and click 'Plot Sensitivity' to see plot")
     if data is None or data == {}:
         return px.scatter(title="No data uploaded. Please upload data and click 'Plot Sensitivity' to see plot")
-    contents = data.get("contents")
-    filename = data.get("filename")
-    pst, par, obs, pars, reis, jcos = parse_zip(contents, True, True, True)
+    pst, par, obs, pars, reis, jcos = parse_zip(data, True, True, True)
     if par is None:
         return px.scatter(title="No .pst file found in zip")
     if not pars:
@@ -131,7 +132,8 @@ def plot(clicks, data, stype, otype, nobs, palette, parselect):
     sdf = pd.DataFrame(sdf, )
     ddf = pd.DataFrame(ddf, )
     if otype == "Obs Groups":
-        ddf = ddf.groupby(obs.set_index("obsname").loc[ddf.index, "obsgp"]).sum()
+        ddf = ddf.groupby(obs.set_index("obsname").loc[ddf.index, "group"]).sum()
+        sdf = sdf.groupby(obs.set_index("obsname").loc[sdf.index, "group"]).sum()
 
     if stype == "L2 Norm":
         ddf = ddf**0.5
@@ -169,10 +171,13 @@ def plot(clicks, data, stype, otype, nobs, palette, parselect):
 
     # add sensitivity plot
     for i, c in enumerate(ddf.sort_index(axis=1).columns):
+        res = reis[i].set_index("obsname").loc[ddf.index]
+        res["val"] = res["modelled"] #* obs.set_index("name").loc[ddf.index]
         fig.add_trace(go.Scatter(
             x=ddf.index,
+            # x=obs.set_index("obsname").loc[ddf.index, ["obsval"]].to_string(index=True, header=False).split("\n"),
             y=ddf[c],
-            text=reis[i].set_index("name").loc[ddf.index, "modelled"].to_string(index=False, header=False).split("\n"),
+            text=res["val"].to_string(index=False, header=False).split("\n") if otype=="Observations" else None,
             mode="lines+markers",
             name=c,
             hovertemplate='Sen:%{y}; Modeled:%{text}',
@@ -181,7 +186,12 @@ def plot(clicks, data, stype, otype, nobs, palette, parselect):
         ))
     fig.update_layout(
         hovermode="x unified",
-        xaxis=dict(tickangle=90)
+        xaxis=dict(
+            tickangle=90,
+            unifiedhovertitle=dict(
+                text='<b>%{x}</b>',
+            )
+        ),
     )
     # fig.update_layout(
     #     xaxis=dict(title=otype, tickangle=90),

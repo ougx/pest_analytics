@@ -5,6 +5,7 @@ import plotly.express as px
 import numpy as np
 import pandas as pd
 from utils import parse_zip, isiterable
+from layout import update_niter
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Parameter Identifiability"
@@ -58,15 +59,7 @@ layout = html.Div([
     Input( "pest-data", "data"),
 )
 def upload_pest(data):
-    if data is None or data == {}:
-        return no_update
-    contents = data.get("contents")
-    filename = data.get("filename")
-    pst, par, obs, pars, reis, jcos = parse_zip(contents, False, False, True)
-    if jcos is {}:
-        return no_update
-    else:
-        return [str(i) for i in jcos.keys()]
+    return update_niter(data, False, False, True)
 
 
 @callback(
@@ -82,9 +75,7 @@ def plot(clicks, data, iiter, svdtrunc, layout):
         return px.scatter(title="Upload data and click 'Plot Identifiability' to see plot")
     if data is None or data == {}:
         return px.scatter(title="No data uploaded. Please upload data and click 'Plot Identifiability' to see plot")
-    contents = data.get("contents")
-    filename = data.get("filename")
-    pst, par, obs, pars, reis, jcos = parse_zip(contents, False, False, True)
+    pst, par, obs, pars, reis, jcos = parse_zip(data, False, False, True)
     if obs is None:
         return px.scatter(title="No .pst file found in zip file.")
     if jcos is {}:

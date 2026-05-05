@@ -1,20 +1,23 @@
 import numpy as np
 import pandas as pd
 
-def get_weighted_jco(obs, jco0, filter_insensitivetive=True):
+def get_weighted_jco(obs, jco0, filter_insensitivetive=True, remove_regul=True, weight_col="weight"):
     """
     product of observation weights and Jacobian matrix
     jco = pd.DataFrame(j, index=observations, columns=parameters)
     """
     mask = jco0.index.isin(obs.obsname)
     jco = jco0.loc[mask, ]
-    WJ = jco * obs.set_index("obsname").loc[jco.index, "weight"].values[:, None]
+    WJ = jco * obs.set_index("obsname").loc[jco.index, weight_col].values[:, None]
     if filter_insensitivetive:
         csplimit = 1e-10
-        nobs_useful = (obs.weight > 0).sum()
+        nobs_useful = (obs[weight_col] > 0).sum()
         csp = (WJ**2).sum() ** 0.5 / nobs_useful
         mask = WJ.columns.isin(csp[csp>csplimit].index) # filter non-sensitive parameters
         WJ = WJ.loc[:,mask]
+    if remove_regul:
+        mask = obs.set_index("obsname").loc[WJ.index].obsgrp.str.startswith("regul")
+        WJ = WJ.loc[~mask]
     return WJ.copy()
 
 def get_cov(obs, jco0, filter_insensitivetive=True):

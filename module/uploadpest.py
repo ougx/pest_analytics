@@ -28,21 +28,36 @@ upload = dcc.Upload(
 
 layout = html.Div([
     # html.H4('This is our Parameter Update page', id=name+"home-status"),
+    dmc.TextInput(
+        # props as configured above:
+        placeholder=r"zip file path, e.g. \\file2019\Projects\MichaelOu\PEST\napa2026_04.zip",
+        label="Specify Path to PEST Zipfile on SSP&A Server",
+        # description="Enter your full name as it appears on your card",
+        required=True,
+        id='pest-path',
+        persistence=True
+        # value=r"C:\Cloud\OneDrive - S.S. Papadopulos & Associates, Inc\1744-PecoModelUpdate\06_Model\Peco_Calib_20260316.zip"
+        # other props...
+    ),
+    html.H3("or", style={"text-align": "center"}),
     upload,
+    dmc.Button("Load Data", id="btn-parsedata", my=20, size="large", fullWidth=True),
     dcc.Store(id="pest-data", storage_type="memory"),
 ])
 
 
 @callback(
     Output("pest-data", "data"),
-    Input("upload-pest", "filename"),
-    Input("upload-pest", "contents"),
+    Input("btn-parsedata", "n_clicks"),
+    State("upload-pest", "filename"),
+    State("upload-pest", "contents"),
+    State("pest-path", "value"),
+    prevent_initial_callback=False,
 )
-def update_pest_data(filename, contents):
-    if filename and contents:
-        # print({"filename": filename, "contents": contents})
-        return {"filename": filename, "contents": contents}
-    return {}
+def update_pest_data(nclick, filename, contents, pestpath):
+    if nclick:
+        return {"filename": filename, "contents": contents, "pestpath":pestpath}
+
 
 
 @callback(
@@ -51,15 +66,13 @@ def update_pest_data(filename, contents):
     Input("pest-data", "data"),
 )
 def upload_pest(data):
-    if data is None or data == {}:
-        return [html.Div(["No file uploaded. Please upload a zip file containing PEST files.",
-             html.Br(),
-             "Optional obs.csv[obsname,obsgp] and par.csv[parname,pargp] in the zip file can be used to reassign observation and parameter groups.",
-             html.Br(),
-             "Phi calculated from `.rei` files. Initial Phi value is calculated from `.hp` file or `.rei.0` file."
-        ],), "uploadpest"]
-    else:
-        filename = data.get("filename")
-        contents = data.get("contents")
-        pst, par, obs, pars, jcos, reis = parse_zip(contents, False, False, False)
-        return [f"{filename} Uploaded. Analyzing {pst}...", "phiupdate"]
+    if data:
+        pst, par, obs, pars, jcos, reis = parse_zip(data, False, False, False)
+        if pst:
+            return [f"Zipfile successfully parsed. Analyzing {pst}...", "phiupdate"]
+    return [html.Div(["No file uploaded or specified. Please specify or upload a zip file containing PEST files.",
+        html.Br(),
+        "Optional obs.csv[obsname,obsgp] and par.csv[parname,pargp] in the zip file can be used to reassign observation and parameter groups.",
+        html.Br(),
+        "Phi calculated from `.rei` files. Initial Phi value is calculated from `.hp` file or `.rei.0` file."
+    ],), "uploadpest"]

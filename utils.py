@@ -1,5 +1,6 @@
 import base64
 import io
+import os
 import zipfile
 import pandas as pd
 import numpy as np
@@ -34,7 +35,7 @@ def read_rei(f):
         if l == '\n':
             break
         lines += l.decode().strip() + '\n'
-    return read_df(lines, header=0)
+    return read_df(lines, header=0).rename(columns={"name":"obsname", "group":"obsgrp"})
 
 def read_jco(fbuf, offset=0):
     NESPAR,NXROW,NVAL = np.frombuffer(fbuf, "i4", 3)
@@ -84,10 +85,10 @@ def read_par_in_pst(f):
             continue
         lines += l.strip() + '\n'
     par = read_df(lines, usecols=range(10),
-                  names='parname partrans parchglim parval0 parlbnd parubnd pargp scale offset dercom'.split())
+                  names='parname partrans parchglim parval0 parlbnd parubnd pargrp scale offset dercom'.split())
     par['parname']  = par['parname'].str.lower()
     par['partrans'] = par['partrans'].str.lower()
-    par['pargp']    = par['pargp'].str.lower()
+    par['pargrp']    = par['pargrp'].str.lower()
     par['tiedto'] = ""
     for i,r in par.iterrows():
             if r["partrans"] == "tied":
@@ -105,17 +106,32 @@ def read_obs_in_pst(f):
                 break
             lines += l.strip() + '\n'
 
-        obs = read_df(lines, usecols=range(4), names='obsname obsval weight group'.split())
+        obs = read_df(lines, usecols=range(4), names='obsname obsval weight obsgrp'.split())
         obs['obsname'] = obs['obsname'].str.lower()
-        obs['group']   = obs['group'].str.lower()
+        obs['obsgrp']   = obs['obsgrp'].str.lower()
         return obs
 
-def parse_zip(contents, loadpar=True, loadrei=False, loadjco=False):
-    if not contents:
-        return None, None, None, None, None
-    content_string = contents.split(',')[1]
-    decoded = base64.b64decode(content_string)
-    return read_pest_zip(io.BytesIO(decoded), loadpar, loadrei, loadjco)
+def check_data(data):
+    # print("data", data)
+    hasData = False
+    if data and isinstance(data, dict):
+        hasData = any([v for k, v in data.items()])
+    return hasData
+
+
+def parse_zip(data, loadpar=True, loadrei=False, loadjco=False):
+    if check_data(data):
+        if data.get("pestpath"):
+            # check if file exists
+            pestpath = data.get("pestpath")
+            if os.path.exists(pestpath):
+                # print("pestpath", pestpath)
+                return read_pest_zip(pestpath, loadpar, loadrei, loadjco)
+        if data.get("contents"):
+            content_string = data.get("contents").split(',')[1]
+            decoded = base64.b64decode(content_string)
+            return read_pest_zip(io.BytesIO(decoded), loadpar, loadrei, loadjco)
+    return None, None, None, None, None, None
 
 def read_pest_zip(zip, loadpar=True, loadrei=False, loadjco=False):
     par = None; pa = None
@@ -131,14 +147,16 @@ def read_pest_zip(zip, loadpar=True, loadrei=False, loadjco=False):
                 with z.open(name) as f:
                     ob = pd.read_csv(f, )
                     ob["obsname"] = ob["obsname"].str.lower()
-                    ob["obsgp"] = ob["obsgp"].str.lower()
-                    ob.set_index("obsname")
+                    for c in ob.columns:
+                        if c.lower().startswith("grp"):
+                            ob[c] = ob[c].str.lower()
             if name.endswith('par.csv'):
                 with z.open(name) as f:
                     pa = pd.read_csv(f, )
                     pa["parname"] = pa["parname"].str.lower()
-                    pa["pargp"] = pa["pargp"].str.lower()
-                    pa = pa.set_index("parname")
+                    for c in par.columns:
+                        if c.lower().startswith("grp"):
+                            pa[c] = pa[c].str.lower()
             if name[-1] in "0123456789":
                 iiter = int(name[-1])
                 fileext = name[-5:-2]
@@ -168,74 +186,122 @@ def read_pest_zip(zip, loadpar=True, loadrei=False, loadjco=False):
                     par = read_par_in_pst(f)
                 with z.open(name) as f:
                     obs = read_obs_in_pst(f)
+    if pst == "":
+        return ["", None, None, {}, {}, {}]
     if hp is not None and obs is not None:
         rr = obs.copy()
-        rr["name"] = obs["obsname"]
-        rr["group"] = obs["group"]
         rr["measured"] = obs["obsval"]
         rr["modelled"] = hp.REFOBS
         rr["residual"] = rr["measured"] - rr["modelled"]
-        reis[0] = rr.loc[:, ["name", "group", "measured", "modelled", "residual", "weight"]]
+        reis = {0:rr.loc[:, ["obsname", "obsgrp", "measured", "modelled", "residual", "weight"]]} | reis
     if par is not None and pa is not None:
-        par["pargp"] = pa.loc[par["parname"], "pargp"].values
+        par = pd.merge(par, pa, on='parname', how="left")
     if obs is not None and ob is not None:
-        obs["group"] = ob.loc[obs["obsname"], "obsgp"].values
+        obs = pd.merge(obs, ob, on='obsname', how="left")
+    if reis:
         for i, df in reis.items():
-            df["group"] = ob.loc[df["name"], "obsgp"].values
+            reis[i] = pd.merge(df[["obsname", "measured", "modelled", "residual"]], obs, on="obsname")
+    if pars:
+        for i, df in pars.items():
+            pars[i] = pd.merge(df, par.drop(["scale", "offset"], axis=1), on="parname")
     return pst, par, obs, pars, reis, jcos
 #%%
+
 if __name__ == "__main__":
+    zipf = r'd:\Cloud\OneDrive - S.S. Papadopulos & Associates, Inc\1744-PecoModelUpdate\06_Model\RABGWModel_working\PEST\rgw02.zip'
+    zipf = r'd:\Cloud\OneDrive - S.S. Papadopulos & Associates, Inc\1869-SWRCB_Napa\05_Model\NVIHM_SWRCB_NWT_LSPC\PEST\zzArchive\napa2026_04.zip'
+    data  = {'filename': None, 'contents': None, 'pestpath': zipf}
     pst, par, obs, pars, reis, jcos = read_pest_zip(
-        r"c:\Cloud\OneDrive - S.S. Papadopulos & Associates, Inc\1869-SWRCB_Napa\05_Model\NVIHM_SWRCB_NWT_LSPC\PEST\napa2026_04.zip",
+        zipf,
         True, True, True
         )
 
     www
+
+    def test_contribution():
+        from pst import get_weighted_jco
+        
+        iiter = 1
+        jco0 = jcos[int(iiter)]
+        rei0 = reis[int(iiter)]
+        par0 = pars[int(iiter)]
+        
+        df = pd.merge(jco0, rei0, left_index=True, right_on="obsname")
+        r = df.set_index("obsname")[["residual"]]
+        J = df.loc[:, jco0.columns]
+        
+        # calculate the joint contribution matrix
+        delta = par0.set_index("parname")
+        delta = (delta[["parval"]] - delta[["parval0"]].values).loc[jco0.columns].T
+        C = - np.outer(r, delta) * J   # (n x p)
+        C.index = r.index
+        # total contribution per parameter
+        param_contrib = C.sum(axis=0)
+        
+        # total contribution per observation
+        obs_contrib = C.sum(axis=1)
+
+    def test_phi():
+        phi = {}
+        for i, df in reis.items():
+            #print(df)
+            df = df[df.weight>0]
+            df["phi"] = (df.weight * df.residual)**2
+            phi[i] = df.groupby("obsgrp").phi.sum()
+        phi = pd.DataFrame(phi)
+        phi.columns.name = "Iteration"
+        phi = phi.stack().rename("phi").reset_index()
+        phi_ter = phi.groupby("Iteration").phi.sum().reset_index()
+        phi_ter_no_regul = phi[~phi.obsgrp.str.startswith("regul")].groupby("Iteration").phi.sum().reset_index()
+        phi_ter["%"] = (phi_ter_no_regul.phi / phi_ter_no_regul.phi.iloc[0] * 100).round(1).astype(str) + "%"
+
+        for g, df in phi.groupby("obsgrp"):
+            print(g, df)
     def test_leverage():
         from pst import get_weighted_jco
         iiter = 1
         jco0 = jcos[int(iiter)]
         WJ = get_weighted_jco(obs, jco0)
-        
+
         H = (WJ @ np.linalg.pinv(WJ.T @ WJ)).values @ WJ.T
 
-    leverage = np.diag(H)
-    sensitivity = np.sqrt(np.diag(WJ @ WJ.T))
+        leverage = np.diag(H)
+        sensitivity = np.sqrt(np.diag(WJ @ WJ.T))
 
-    rei = reis[int(iiter)]
-    rei = rei.set_index("name").loc[WJ.index]
-    r  = rei.residual
-    rw = rei.residual * rei.weight
+        rei = reis[int(iiter)]
+        rei = rei.set_index("name").loc[WJ.index]
+        r  = rei.residual
+        rw = rei.residual * rei.weight
 
-    sigma2 = np.sum(rw**2) / (len(r) - WJ.shape[1])
-    std_res = r / np.sqrt(sigma2 * (1 - leverage))
+        sigma2 = np.sum(rw**2) / (len(r) - WJ.shape[1])
+        std_res = r / np.sqrt(sigma2 * (1 - leverage))
 
-    rr = pd.DataFrame(dict(
-        Observed=rei.measured,
-        Simulated=rei.modelled,
-        Residual=r,
-        Weight=rei.weight,
-        Sensitivity=sensitivity,
-        Leverage=leverage,
-        Std_Residual=std_res,
-        ObsGroup=rei.group,
-    ))
-    rr["text"] = [f"{i}<br>"+r.to_string().replace("\n", "<br>") for i, r in rr.iterrows()]
+        rr = pd.DataFrame(dict(
+            Observed=rei.measured,
+            Simulated=rei.modelled,
+            Residual=r,
+            Weight=rei.weight,
+            Sensitivity=sensitivity,
+            Leverage=leverage,
+            Std_Residual=std_res,
+            ObsGroup=rei.obsgrp,
+        ))
+        rr["text"] = [f"{i}<br>"+r.to_string().replace("\n", "<br>") for i, r in rr.iterrows()]
 
-        
+
     def test_obssen():
-        
+
         stype = "L2 Norm"
         obsselect = ["napar_napa200909"]
         otype = "Observations"
-        
+
         ddf = {} # aggregated sensitivity
         sdf = {} # (raw)signed sensitivity
         if otype == "Observations":
             oo = obs[obs["obsname"].isin(obsselect)]
         else:
             oo = obs[obs["group"].isin(obsselect)]
-    
+
         for i, jco0 in jcos.items():
             df = pd.merge(jco0, oo, left_index=True, right_on="obsname")
             df.set_index("obsname", inplace=True)
@@ -246,23 +312,23 @@ if __name__ == "__main__":
                 ddf[f"Iter {i}"] = ((df["weight"].values[:, None] * df)**2).sum(axis=0)
         sdf = pd.DataFrame(sdf, )
         ddf = pd.DataFrame(ddf, )
-    
+
         if stype == "L2 Norm":
             ddf = ddf**0.5
-    
+
         tot = (ddf / ddf.max(axis=0).values[None,:]).sum(axis=1)
         tot = tot.sort_values(ascending=False).iloc[:int(nobs)]
         ddf = ddf.loc[tot.index]
         sdf = sdf.loc[tot.index]
         sdf = pd.DataFrame(np.where(sdf>0, "triangle-up", "triangle-down"), columns=ddf.columns)
-    
+
         pp = {"Iter 0": par.set_index("parname").loc[obsselect, "parval0"]}
         for i, df in pars.items():
             pp[f"Iter {i}"] = df.set_index("parname").loc[obsselect, "parval"]
-    
+
         ddf["Iter 0"] = 0
         sdf["Iter 0"] = "circle"
-        
+
     def test_parsen():
         stype = "L1 Norm"
         otype = "Observation"

@@ -7,6 +7,7 @@ from utils import parse_zip, isiterable
 import pandas as pd
 import numpy as np
 from plotly.subplots import make_subplots
+from layout import update_obs, update_groups
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Observation Sensitivity"
@@ -31,6 +32,7 @@ layout = html.Div([
         dmc.Select(id=name+"stype", label="Sensitivity Type:", data=["L1 Norm", "L2 Norm"], value="L2 Norm", style={"width": "150px"}),
         dmc.Select(id=name+"otype", label="Observation Type:",
                    data=["Observations", "Obs Groups"], value="Observations", style={"width": "150px"}),
+        dmc.Select(id=name+"grp", label="Group by:", data=["obsgrp"], value="obsgrp", style={"width": "150px"}),
         dmc.Select(id=name+"nobs", label="Number of Observations:", data=["5", "10", "20", "30", "40", "50"], value="50", style={"width": "150px"}),
         dmc.Select(id=name+"palette", label="Color Palette:", data=list(palettes.keys()), value="Jet", style={"width": "150px"}),
         dmc.Button("Plot Sensitivity", id=name+"update-plot", color="blue"),
@@ -41,32 +43,28 @@ layout = html.Div([
         value=[],
         data=data,
         mb=10,
+        searchable=True,
     ),
     dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
 ])
 
 @callback(
-    Output(name+"obsselect", "data"),
-    Input ("pest-data", "data"),
-    Input (name+"otype", "value"),
+    Output(name+"grp", "data"),
+    Output(name+"grp", "value"),
+    Input( "pest-data", "data"),
 )
-def upload_pest(data, otype):
-    if data is None or data == {}:
-        return no_update
-    contents = data.get("contents")
-    filename = data.get("filename")
-    pst, par, obs, pars, reis, jcos = parse_zip(contents, False, False, False)
-    if obs is None:
-        return no_update
-    else:
-        oo = obs[obs.weight>0]
-        if otype == "Observations":
-            data = []
-            for gp, df in oo.groupby("group"):
-                data.append({"group": gp, "items": df.obsname.tolist()})
-        else:
-            data = [gp for gp in oo["group"].unique() if not gp.startswith("regul")]
-    return data
+def upload_grp(data):
+    return update_groups(data)
+
+@callback(
+    Output(name+"obsselect", "data"),
+    State( "pest-data", "data"),
+    Input (name+"otype", "value"),
+    Input (name+"grp", "value"),
+)
+def upload_pest(data, otype, grp):
+    return update_obs(data, otype, grp)
+
 
 @callback(
     Output(name+"plot", "figure"),
@@ -74,18 +72,17 @@ def upload_pest(data, otype):
     State( "pest-data", "data"),
     State( name+"stype", "value"),
     State( name+"otype", "value"),
+    State( name+"grp", "value"),
     State(name+"nobs", "value"),
     State(name+"palette", "value"),
     State(name+"obsselect", "value"),
 )
-def plot(clicks, data, stype, otype, nobs, palette, obsselect):
+def plot(clicks, data, stype, otype, grp, nobs, palette, obsselect):
     if clicks is None or clicks == 0:
         return px.scatter(title="Upload data and click 'Plot Sensitivity' to see plot")
     if data is None or data == {}:
         return px.scatter(title="No data uploaded. Please upload data and click 'Plot Sensitivity' to see plot")
-    contents = data.get("contents")
-    filename = data.get("filename")
-    pst, par, obs, pars, reis, jcos = parse_zip(contents, True, True, True)
+    pst, par, obs, pars, reis, jcos = parse_zip(data, True, True, True)
     if obs is None:
         return px.scatter(title="No .pst file found in zip")
     if not jcos:
@@ -103,7 +100,7 @@ def plot(clicks, data, stype, otype, nobs, palette, obsselect):
     if otype == "Observations":
         oo = obs[obs["obsname"].isin(obsselect)]
     else:
-        oo = obs[obs["group"].isin(obsselect)]
+        oo = obs[obs[grp].isin(obsselect)]
     obsselect = oo.obsname.tolist()
     for i, jco0 in jcos.items():
         df = jco0.loc[oo.obsname]
@@ -135,12 +132,20 @@ def plot(clicks, data, stype, otype, nobs, palette, obsselect):
     )
 
     # add parameter update plot
+    fig.add_trace(go.Scatter(
+        x=obsselect,
+        y=obs.set_index("obsname").loc[obsselect, "obsval"],
+        mode="markers",
+        name="Observed",
+        marker=dict(color="black"),
+        showlegend=False,
+    ), row=1, col=2)
     for i in range(len(reis)):
         c = colors[i]
         df = reis[i]
         fig.add_trace(go.Scatter(
             x=obsselect,
-            y=df.set_index("name").loc[obsselect, "modelled"],
+            y=df.set_index("obsname").loc[obsselect, "modelled"],
             mode="markers",
             name=i,
             marker=dict(color=c),

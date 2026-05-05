@@ -104,13 +104,11 @@ layout = dmc.Stack(
 def upload_pest(data):
     if data is None or data == {}:
         return [no_update, no_update]
-    contents = data.get("contents")
-    filename = data.get("filename")
-    pst, par, obs, pars, jcos, reis = parse_zip(contents, False, False, False)
+    pst, par, obs, pars, jcos, reis = parse_zip(data, False, False, False)
     if par is None:
         return [no_update, no_update]
     else:
-        pargroups = [p for p in par.pargp.unique() if p.strip() != ""]
+        pargroups = [p for p in par.pargrp.unique() if p.strip() != ""]
         pargroups_chp = [dmc.Chip(p, value=p) for p in pargroups]
     return [pargroups_chp, pargroups]
 
@@ -135,10 +133,7 @@ def update_plot(clicks, data, valcol, pargroup, partrans, nearbound, bndlimit, p
     if data is None:
         return px.scatter(title="Upload data to see plot")
 
-    contents = data.get("contents")
-    filename = data.get("filename")
-
-    pst, par, obs, pars, reis, jcos = parse_zip(contents, True)
+    pst, par, obs, pars, reis, jcos = parse_zip(data, True)
 
     if par is None:
         return px.scatter(title="No .pst file found in zip")
@@ -167,7 +162,7 @@ def update_plot(clicks, data, valcol, pargroup, partrans, nearbound, bndlimit, p
         dfs.append(df)
     df = pd.concat(dfs)
     dff = df[
-        df.pargp.isin(pargroup) &
+        df.pargrp.isin(pargroup) &
         df.partrans.isin(partrans) &
         # (df.nearbound == nearbound) &
         True
