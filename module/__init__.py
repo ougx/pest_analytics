@@ -8,6 +8,7 @@ from . import (
     parcor,
     obssen,
     obssim,
+    obsconf,
     resinfl,
 )
 
@@ -21,5 +22,6 @@ apps = {
     "parcor":parcor,
     "obssen":obssen,
     "obssim":obssim,
+    "obsconf":obsconf,
     "resinfl":resinfl,
 }

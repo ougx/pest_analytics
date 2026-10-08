@@ -5,7 +5,7 @@ import dash_mantine_components as dmc
 import plotly.express as px
 from utils import parse_zip
 import plotly.graph_objects as go
-from pst import get_weighted_jco
+from pst import get_weighted_jco, get_jco_rei
 from layout import update_groups, update_weights
 
 name = __name__.lstrip("module.") + "-"
@@ -23,6 +23,7 @@ md = dcc.Markdown('''
 
 
     The figure below plots observation leverage (X axis) vs. absolute standardized residual (Y axis), sized by the observation sensitivity and colored by raw residual.
+    `.jco.N` is computed at the parameters of iteration N-1, so it is paired with the residuals in `.rei.(N-1)` (`.hp` for N = 1).
     Standardized Residual is calculated as follows:
     $$
         r^*_j = \\frac{r_j}{\sqrt{\sigma^2(1 - H_{jj})}}
@@ -145,10 +146,15 @@ def plot(clicks, data, iiter, grp, weight, palette, invcmap, xscale, yscale, ): 
     pst, par, obs, pars, reis, jcos = parse_zip(data, False, True, True)
     if obs is None:
         return px.scatter(title="No .pst file found in zip file.")
-    if jcos is {}:
+    if not jcos:
         return px.scatter(title="No .jco file found in zip file.")
-    if reis is {}:
+    if not reis:
         return px.scatter(title="No .rei file found in zip file.")
+    if int(iiter) not in jcos:
+        return px.scatter(title=f"No .jco file found for iteration {iiter}.")
+    rei = get_jco_rei(reis, int(iiter))
+    if rei is None:
+        return px.scatter(title=f"No .rei file found for iteration {int(iiter)-1} or {iiter}.")
 
     jco0 = jcos[int(iiter)]
     WJ = get_weighted_jco(obs, jco0, weight_col=weight, )
@@ -159,7 +165,6 @@ def plot(clicks, data, iiter, grp, weight, palette, invcmap, xscale, yscale, ): 
     leverage = np.diag(H)
     sensitivity = np.sqrt(np.diag(WJ @ WJ.T))
 
-    rei = reis[int(iiter)]
     rei = rei.set_index("obsname").loc[WJ.index]
     r  = rei.residual
     rw = rei.residual * rei[weight]

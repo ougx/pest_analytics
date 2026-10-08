@@ -13,6 +13,8 @@ documentation: https://dash.plotly.com/urls
 
 import dash
 import dash_mantine_components as dmc
+# dash-mantine-components >= 0.14 needs React 18; Dash 2.x defaults to React 16
+dash._dash_renderer._set_react_version("18.2.0")
 from dash import Input, Output, dcc, html, callback, State
 from module import apps
 
@@ -108,4 +110,8 @@ app.layout = dmc.MantineProvider(layout)
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8050, debug=True)
+    import os
+    # 8050 falls inside a Windows reserved port range (8013-8112, Hyper-V/WSL);
+    # check with: netsh interface ipv4 show excludedportrange protocol=tcp
+    port = int(os.environ.get("PORT", 8888))
+    app.run(host="0.0.0.0", port=port, debug=True)

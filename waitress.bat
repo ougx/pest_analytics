@@ -1,1 +1,1 @@
-C:\Miniconda3\Scripts\waitress-serve.exe --port=80 "app:app"
+C:\Miniconda3\Scripts\waitress-serve.exe --port=80 "app:app.server"

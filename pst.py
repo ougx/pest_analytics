@@ -85,3 +85,39 @@ def get_dataworth(obs, jco0, filter_insensitivetive=True):
         worth[obs] = val - base
 
     return pd.Series(worth).sort_values(ascending=False)
+
+
+def get_obs_pull(obs, jco0, rei, weight_col="weight", filter_insensitivetive=True):
+    """
+    Pull of each observation on each parameter: P_ij = 2 w_i^2 r_i J_ij = -dphi_i/dp_j
+    Positive: observation i wants parameter j to increase; negative: to decrease.
+    rei must hold residuals (measured - modelled) at the parameters where jco0 was computed.
+    """
+    WJ = get_weighted_jco(obs, jco0, filter_insensitivetive, weight_col=weight_col)
+    w = obs.set_index("obsname").loc[WJ.index, weight_col]
+    r = rei.set_index("obsname")["residual"].reindex(WJ.index).fillna(0)
+    wr = (w * r).values
+    pull = WJ * (2 * wr[:, None])
+    return pull.loc[wr != 0]
+
+
+def get_par_tension(pull):
+    """
+    Summarize observation (or group) pulls per parameter.
+    pull: DataFrame (observations/groups x parameters) from get_obs_pull.
+    tension = sum|P| - |sum P| = 2 min(up, |down|): pull that cancels out.
+    """
+    up = pull.clip(lower=0).sum()
+    down = pull.clip(upper=0).sum()
+    tension = 2 * np.minimum(up, -down)
+    ratio = np.minimum(up, -down) / np.maximum(up, -down).replace(0, np.nan)
+    return pd.DataFrame(dict(up=up, down=down, net=up + down, tension=tension, ratio=ratio.fillna(0)))
+
+
+def get_jco_rei(reis, iiter):
+    """
+    Residuals at the parameters where .jco.N was computed. PEST computes .jco.N at the
+    parameters of iteration N-1, so pair it with .rei.(N-1) (the .hp file for N = 1).
+    Falls back to .rei.N if .rei.(N-1) is not available; returns None if neither is.
+    """
+    return reis.get(iiter - 1, reis.get(iiter))
