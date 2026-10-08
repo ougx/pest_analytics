@@ -6,7 +6,7 @@ from plotting import palettes, residual_stats, stat_names, message_figure
 import pandas as pd
 from utils import parse_zip, isiterable
 from pst import get_obssim, get_obscor
-from layout import update_groups, update_obs, about
+from layout import update_groups, update_obs, about, graph
 from plotly.subplots import make_subplots
 import numpy as np
 
@@ -61,7 +61,7 @@ layout = html.Div([
         dmc.Switch(id=name+"invcmap", label="Inverse colormap", checked=False, style={"width": "150px"}),
         dmc.Button("Plot Scatters", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
-    dcc.Loading(dcc.Graph(id=name+"plot", figure=message_figure("Load data, then click 'Plot Scatters'."), style={"margin-bottom":"90px"})),
+    graph(name+"plot", message_figure("Load data, then click 'Plot Scatters'."), fullname + "", style={"margin-bottom":"90px"}),
 ])
 
 

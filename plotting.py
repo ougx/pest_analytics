@@ -1,6 +1,68 @@
+import base64
 import numpy as np
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+
+
+def _array(v):
+    """Plain values from figure JSON, decoding Plotly's {"dtype", "bdata"} typed arrays."""
+    if isinstance(v, dict) and "bdata" in v:
+        a = np.frombuffer(base64.b64decode(v["bdata"]), dtype=np.dtype(v["dtype"]))
+        if v.get("shape"):
+            a = a.reshape([int(n) for n in str(v["shape"]).split(",")])
+        return a
+    return v
+
+
+def figure_to_frame(fig):
+    """
+    The data behind a figure (as sent back by dcc.Graph) as a table for CSV download:
+    a heatmap as its matrix (overlay markers ignored), a table as its cells, a Sankey as
+    its links, and other traces as one row per point. Returns None for a figure without data.
+    """
+    traces = (fig or {}).get("data") or []
+    heatmaps = [t for t in traces if t.get("type") == "heatmap"]
+    if heatmaps:
+        t = heatmaps[0]
+        z = np.asarray(_array(t.get("z")), dtype=float)
+        index = _array(t.get("y")) if t.get("y") is not None else range(z.shape[0])
+        columns = _array(t.get("x")) if t.get("x") is not None else range(z.shape[1])
+        return pd.DataFrame(z, index=list(index), columns=list(columns))
+    frames = []
+    for t in traces:
+        kind = t.get("type", "scatter")
+        if kind == "table":
+            header = [str(h) for h in _array(t["header"]["values"])]
+            cells = [list(_array(c)) for c in _array(t["cells"]["values"])]
+            frames.append(pd.DataFrame(dict(zip(header, cells))))
+        elif kind == "sankey":
+            labels = list(_array(t["node"]["label"]))
+            link = t["link"]
+            df = pd.DataFrame(dict(
+                source=[labels[i] for i in _array(link["source"])],
+                target=[labels[i] for i in _array(link["target"])],
+                value=list(_array(link["value"])),
+            ))
+            if link.get("customdata") is not None:
+                df["details"] = [str(c).replace("<br>", "; ") for c in _array(link["customdata"])]
+            frames.append(df)
+        else:
+            cols = {k: _array(t[k]) for k in ("x", "y", "z", "text", "customdata")
+                    if t.get(k) is not None and not isinstance(t.get(k), str)}
+            if not cols:
+                continue
+            n = max(len(v) for v in cols.values())
+            df = pd.DataFrame({"trace": [t.get("name", kind)] * n})
+            for k, v in cols.items():
+                v = np.asarray(v, dtype=object) if not isinstance(v, np.ndarray) else v
+                if v.ndim == 2:   # e.g. customdata with several columns
+                    for j in range(v.shape[1]):
+                        df[f"{k}{j}"] = v[:, j]
+                elif len(v) == n:
+                    df[k] = v
+            frames.append(df)
+    return pd.concat(frames, ignore_index=True) if frames else None
 
 
 def message_figure(text=None, height=220):

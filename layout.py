@@ -1,8 +1,36 @@
 """common functions for updating layout components
 """
-from dash import no_update
+from dash import no_update, dcc, html, callback, Input, Output, State
 import dash_mantine_components as dmc
+import pandas as pd
 from utils import parse_zip
+from plotting import figure_to_frame
+
+
+def graph(id, figure, filename, **kwargs):
+    """
+    A plot (with loading spinner) and a "Download data (CSV)" button that saves the data
+    shown in it. kwargs go to dcc.Graph.
+    """
+    @callback(
+        Output(id + "-csv", "data"),
+        Input(id + "-csv-btn", "n_clicks"),
+        State(id, "figure"),
+        prevent_initial_call=True,
+    )
+    def download(n_clicks, fig):
+        df = figure_to_frame(fig)
+        if df is None or df.empty:
+            return no_update
+        # a matrix (heatmap) keeps its row labels; point tables have a plain row number
+        return dcc.send_data_frame(df.to_csv, f"{filename}.csv", index=not isinstance(df.index, pd.RangeIndex))
+
+    style = kwargs.pop("style", None)
+    return html.Div([
+        dcc.Loading(dcc.Graph(id=id, figure=figure, **kwargs)),
+        dmc.Group(dmc.Button("Download data (CSV)", id=id + "-csv-btn", size="xs", variant="subtle"), justify="flex-end"),
+        dcc.Download(id=id + "-csv"),
+    ], style=style)
 
 
 def about(md, label="About this analysis"):

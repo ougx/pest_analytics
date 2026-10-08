@@ -8,7 +8,7 @@ import dash
 from dash import dcc, html, Input, Output, State, callback, no_update
 import dash_mantine_components as dmc
 from utils import parse_zip, isiterable
-from layout import about
+from layout import about, graph
 from plotting import palettes, message_figure
 
 
@@ -45,7 +45,7 @@ layout = dmc.Stack(
             dmc.Select(id=name+"layout", label="Layout:", data=["Horizontal", "Vertical"], value="Horizontal", style={"width": "150px"}),
             dmc.Button("Plot Parameter", id=name+"update-plot", color="blue"),
         ], mt=10, align="flex-end"),
-        dcc.Loading(dcc.Graph(id=name+"plot", figure=message_figure("Load data, then click 'Plot Parameter'."), style={"margin-bottom":"90px"})),
+        graph(name+"plot", message_figure("Load data, then click 'Plot Parameter'."), fullname + "", style={"margin-bottom":"90px"}),
     ]
 )
 

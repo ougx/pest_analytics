@@ -622,3 +622,59 @@ def test_initial_figures_are_placeholders():
     for g in graphs:
         fig = go.Figure(g.figure)
         assert fig.layout.xaxis.visible is False and fig.layout.yaxis.visible is False, g.id
+
+
+# ---------------------------------------------------------------------------
+# CSV download of the data shown in a plot
+# ---------------------------------------------------------------------------
+
+def _as_browser_json(fig):
+    """a figure as dcc.Graph sends it back (typed arrays base64-encoded)"""
+    import json
+    import plotly.io as pio
+    return json.loads(pio.to_json(fig))
+
+@patch("module.parcor.parse_zip", return_value=GOOD_RESULT)
+def test_csv_heatmap_is_matrix(mock_pz):
+    import numpy as np
+    from plotting import figure_to_frame
+    from module.parcor import plot
+    fig = plot(1, {"pestpath": "dummy"}, "20", "6", "0.98", "RdBu", True)
+    df = figure_to_frame(_as_browser_json(fig))
+    assert df.shape == (20, 20)
+    assert list(df.index) == list(df.columns)
+    np.testing.assert_allclose(np.diag(df.values), 1.0)
+
+@patch("module.obsconf.parse_zip", return_value=GOOD_RESULT)
+def test_csv_bars_and_sankey(mock_pz):
+    from plotting import figure_to_frame
+    from module.obsconf import plot, plot_sankey
+    bar, heat, opts, sel = plot(1, {"pestpath": "dummy"}, "6", "weight", "obsgrp", "Parameters", "10", "10")
+    df = figure_to_frame(_as_browser_json(bar))
+    assert set(df.trace) == {"Pull up (wants increase)", "Pull down (wants decrease)", "Net pull"}
+    assert (df[df.trace == "Pull up (wants increase)"].y >= 0).all()
+    assert len(df) == 30
+    sk = figure_to_frame(_as_browser_json(plot_sankey(sel[:2], "obsname", "5", True, {"pestpath": "dummy"}, "6", "weight", "Parameters")))
+    assert {"source", "target", "value", "details"} <= set(sk.columns)
+    assert {t.split()[0] for t in sk.target} <= set(sel[:2])   # labels also carry the up/down split
+
+@patch("module.scatterplot.parse_zip", return_value=GOOD_RESULT)
+def test_csv_includes_table(mock_pz):
+    from plotting import figure_to_frame
+    from module.scatterplot import plot
+    fig = plot(1, {"pestpath": "dummy"}, "grpSite", _MIXED_SITE, False, "Hide", "Jet", False)
+    df = figure_to_frame(_as_browser_json(fig))
+    assert "RMSE" in set(df.iloc[:, -1].astype(str)) or "Statistics<br>(weight > 0)" in df.columns
+
+def test_csv_message_figure_has_no_data():
+    from plotting import figure_to_frame, message_figure
+    assert figure_to_frame(_as_browser_json(message_figure("Load data"))) is None
+    assert figure_to_frame(None) is None
+
+def test_every_graph_has_csv_download():
+    from module import apps
+    import dash
+    graphs = [g.id for page in apps.values() for g in _graphs(page.layout)]
+    outputs = list(dash._callback.GLOBAL_CALLBACK_MAP)
+    for gid in graphs:
+        assert any(o.startswith(gid + "-csv.data") for o in outputs), gid

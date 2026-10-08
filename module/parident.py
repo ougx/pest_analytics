@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from utils import parse_zip, isiterable
 from plotting import message_figure
-from layout import update_jco_iter, about
+from layout import update_jco_iter, about, graph
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Parameter Identifiability"
@@ -49,7 +49,7 @@ layout = html.Div([
         dmc.Select(id=name+"layout", label="Layout:", data=["Horizontal", "Vertical"], value="Vertical", style={"width": "150px"}),
         dmc.Button("Plot Identifiability", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
-    dcc.Loading(dcc.Graph(id=name+"plot", figure=message_figure("Load data, then click 'Plot Identifiability'."), style={"margin-bottom":"90px"})),
+    graph(name+"plot", message_figure("Load data, then click 'Plot Identifiability'."), fullname + "", style={"margin-bottom":"90px"}),
 ])
 
 

@@ -7,7 +7,7 @@ import pandas as pd
 from utils import parse_zip
 from plotting import colorscales, message_figure
 from pst import get_obssim
-from layout import update_jco_iter, about
+from layout import update_jco_iter, about, graph
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Observation Similarity"
@@ -44,7 +44,7 @@ layout = html.Div([
         dmc.Switch(id=name+"invcmap", label="Inverse colormap", checked=True, style={"width": "150px"}),
         dmc.Button("Plot Similarity", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
-    dcc.Loading(dcc.Graph(id=name+"plot", figure=message_figure("Load data, then click 'Plot Similarity'."), style={"margin-bottom":"90px"})),
+    graph(name+"plot", message_figure("Load data, then click 'Plot Similarity'."), fullname + "", style={"margin-bottom":"90px"}),
 ])
 
 

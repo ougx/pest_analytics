@@ -7,7 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from plotly.subplots import make_subplots
-from layout import update_groups, update_weights, about
+from layout import update_groups, update_weights, about, graph
 
 # dash.register_page(__name__, path='/')
 
@@ -31,7 +31,7 @@ layout = dmc.Stack(
         dmc.Select(id=name+"weight", label="Weighted by:", data=["weight"], value="weight", style={"width": "150px"}),
         dmc.Button("Plot Phi", id=name+"update-plot", color="blue"),
         ], mt=10, align="flex-end"),
-        dcc.Loading(dcc.Graph(id=name+"plot", figure=message_figure('Load data to see the Phi plot.'), style={"margin-bottom":"90px"})),
+        graph(name+"plot", message_figure('Load data to see the Phi plot.'), fullname + "", style={"margin-bottom":"90px"}),
     ]
 )
 

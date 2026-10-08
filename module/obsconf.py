@@ -8,7 +8,7 @@ import pandas as pd
 from utils import parse_zip
 from plotting import message_figure
 from pst import get_obs_pull, get_par_tension, get_jco_rei
-from layout import update_groups, update_weights, update_jco_iter, about
+from layout import update_groups, update_weights, update_jco_iter, about, graph
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Observation Conflict"
@@ -69,8 +69,8 @@ layout = html.Div([
         dmc.Select(id=name+"ngrp", label="Number of Obs Groups:", data=["10", "20", "30", "50", "100"], value="30", style={"width": "150px"}),
         dmc.Button("Plot Conflicts", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
-    dcc.Loading(dcc.Graph(id=name+"bar", figure=message_figure("Load data, then click 'Plot Conflicts'."))),
-    dcc.Loading(dcc.Graph(id=name+"heat", figure=message_figure())),
+    graph(name+"bar", message_figure("Load data, then click 'Plot Conflicts'."), fullname + " tension"),
+    graph(name+"heat", message_figure(), fullname + " shares"),
     html.H4("Drill-down", style={"margin-top": "20px"}),
     dmc.Group([
         dmc.MultiSelect(id=name+"sankey-par", label="Parameters (click a bar or heatmap cell to add):",
@@ -79,7 +79,7 @@ layout = html.Div([
         dmc.Select(id=name+"nlinks", label="Targets per Parameter:", data=["5", "10", "20", "40"], value="10", style={"width": "150px"}),
         dmc.Switch(id=name+"normalize", label="Normalize per parameter", checked=True, style={"width": "200px"}),
     ], mt=10, align="flex-end"),
-    dcc.Loading(dcc.Graph(id=name+"sankey", figure=message_figure('Select parameter(s) above, or click a bar or heatmap cell.'))),
+    graph(name+"sankey", message_figure('Select parameter(s) above, or click a bar or heatmap cell.'), fullname + " drill-down"),
     html.H4("Target Focus", style={"margin-top": "20px"}),
     dmc.Group([
         dmc.Select(id=name+"focus-type", label="Focus by:", data=["obsname"], value="obsname", style={"width": "150px"}),
@@ -89,9 +89,9 @@ layout = html.Div([
         dmc.Select(id=name+"fnpar", label="Number of Parameters:", data=["10", "20", "30", "50"], value="20", style={"width": "150px"}),
         dmc.Select(id=name+"fnopp", label="Number of Targets:", data=["10", "20", "30", "50"], value="20", style={"width": "150px"}),
     ], mt=10, align="flex-end"),
-    dcc.Loading(dcc.Graph(id=name+"fbar", figure=message_figure('Select the target(s) to focus on, or click a heatmap cell.'))),
-    dcc.Loading(dcc.Graph(id=name+"fopp", figure=message_figure())),
-    dcc.Loading(dcc.Graph(id=name+"fsankey", figure=message_figure(), style={"margin-bottom":"90px"})),
+    graph(name+"fbar", message_figure('Select the target(s) to focus on, or click a heatmap cell.'), fullname + " focus pull"),
+    graph(name+"fopp", message_figure(), fullname + " opponents"),
+    graph(name+"fsankey", message_figure(), fullname + " focus links", style={"margin-bottom":"90px"}),
 ])
 
 

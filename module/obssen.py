@@ -7,7 +7,7 @@ from utils import parse_zip, isiterable
 import pandas as pd
 import numpy as np
 from plotly.subplots import make_subplots
-from layout import update_obs, update_groups, about
+from layout import update_obs, update_groups, about, graph
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Observation Sensitivity"
@@ -45,7 +45,7 @@ layout = html.Div([
         mb=10,
         searchable=True,
     ),
-    dcc.Loading(dcc.Graph(id=name+"plot", figure=message_figure("Load data, then click 'Plot Sensitivity'."), style={"margin-bottom":"90px"})),
+    graph(name+"plot", message_figure("Load data, then click 'Plot Sensitivity'."), fullname + "", style={"margin-bottom":"90px"}),
 ])
 
 @callback(

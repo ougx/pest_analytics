@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from utils import parse_zip, isiterable
 from plotting import colorscales, message_figure
-from layout import update_jco_iter, about
+from layout import update_jco_iter, about, graph
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Parameter Correlation"
@@ -49,7 +49,7 @@ layout = html.Div([
         dmc.Switch(id=name+"invcmap", label="Inverse colormap", checked=True, style={"width": "150px"}),
         dmc.Button("Plot Correlation", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
-    dcc.Loading(dcc.Graph(id=name+"plot", figure=message_figure("Load data, then click 'Plot Correlation'."), style={"margin-bottom":"90px"})),
+    graph(name+"plot", message_figure("Load data, then click 'Plot Correlation'."), fullname + "", style={"margin-bottom":"90px"}),
 ])
 
 

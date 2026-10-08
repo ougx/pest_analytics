@@ -7,7 +7,7 @@ from utils import parse_zip
 from plotting import colorscales, message_figure
 import plotly.graph_objects as go
 from pst import get_weighted_jco, get_jco_rei
-from layout import update_groups, update_weights, update_jco_iter, about
+from layout import update_groups, update_weights, update_jco_iter, about, graph
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Residual Analysis"
@@ -77,7 +77,7 @@ layout = html.Div([
     #     mb=10,
     #     searchable=True,
     # ),
-    dcc.Loading(dcc.Graph(id=name+"plot", figure=message_figure("Load data, then click 'Plot Residual'."), style={"margin-bottom":"90px"})),
+    graph(name+"plot", message_figure("Load data, then click 'Plot Residual'."), fullname + "", style={"margin-bottom":"90px"}),
 ])
 
 
