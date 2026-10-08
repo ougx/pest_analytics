@@ -5,6 +5,7 @@ import plotly.express as px
 import numpy as np
 import pandas as pd
 from utils import parse_zip, isiterable
+from plotting import message_figure
 from layout import update_jco_iter, about
 
 name = __name__.lstrip("module.") + "-"
@@ -48,7 +49,7 @@ layout = html.Div([
         dmc.Select(id=name+"layout", label="Layout:", data=["Horizontal", "Vertical"], value="Vertical", style={"width": "150px"}),
         dmc.Button("Plot Identifiability", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
-    dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
+    dcc.Loading(dcc.Graph(id=name+"plot", figure=message_figure("Load data, then click 'Plot Identifiability'."), style={"margin-bottom":"90px"})),
 ])
 
 
@@ -73,14 +74,14 @@ def upload_pest(data):
 )
 def plot(clicks, data, iiter, svdtrunc, layout):
     if clicks is None or clicks == 0:
-        return px.scatter(title="Upload data and click 'Plot Identifiability' to see plot")
+        return message_figure("Load data, then click 'Plot Identifiability'.")
     if data is None or data == {}:
-        return px.scatter(title="No data uploaded. Please upload data and click 'Plot Identifiability' to see plot")
+        return message_figure("No data loaded. Load data on the Upload Data page, then click 'Plot Identifiability'.")
     pst, par, obs, pars, reis, jcos = parse_zip(data, False, False, True)
     if obs is None:
-        return px.scatter(title="No .pst file found in zip file.")
+        return message_figure("No .pst file found in zip file.")
     if not jcos:
-        return px.scatter(title="No .jco file found in zip file.")
+        return message_figure("No .jco file found in zip file.")
 
     csplimit = 1e-10
     nobs_useful = (obs.weight > 0).sum()

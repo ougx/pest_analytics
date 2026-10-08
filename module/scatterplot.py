@@ -2,7 +2,7 @@ from dash import html, dcc, Input, Output, State, callback, no_update
 import dash_mantine_components as dmc
 import plotly.graph_objects as go
 import plotly.express as px
-from plotting import palettes, residual_stats, stat_names
+from plotting import palettes, residual_stats, stat_names, message_figure
 import pandas as pd
 from utils import parse_zip, isiterable
 from pst import get_obssim, get_obscor
@@ -61,7 +61,7 @@ layout = html.Div([
         dmc.Switch(id=name+"invcmap", label="Inverse colormap", checked=False, style={"width": "150px"}),
         dmc.Button("Plot Scatters", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
-    dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
+    dcc.Loading(dcc.Graph(id=name+"plot", figure=message_figure("Load data, then click 'Plot Scatters'."), style={"margin-bottom":"90px"})),
 ])
 
 
@@ -103,14 +103,14 @@ def upload_pest(data):
 )
 def plot(clicks, data, grp, site, as_residual, zeroweight, palette, invcmap):
     if clicks is None or clicks == 0:
-        return px.scatter(title="Upload data and click 'Plot Scatters'")
+        return message_figure("Load data, then click 'Plot Scatters'.")
     if data is None or data == {}:
-        return px.scatter(title="No data uploaded. Please upload data and click 'Plot Scatters' to see plot")
+        return message_figure("No data loaded. Load data on the Upload Data page, then click 'Plot Scatters'.")
     pst, par, obs, pars, reis, jcos = parse_zip(data, False, True, False)
     if obs is None:
-        return px.scatter(title="No .pst file found in zip file.")
+        return message_figure("No .pst file found in zip file.")
     if not reis:
-        return px.scatter(title="No .rei file found in zip file.")
+        return message_figure("No .rei file found in zip file.")
 
 
     colors = px.colors.sample_colorscale(palettes[palette], len(reis))

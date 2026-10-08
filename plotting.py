@@ -1,5 +1,26 @@
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
+
+
+def message_figure(text=None, height=220):
+    """
+    Placeholder shown instead of a plot (before plotting, or when data is missing):
+    a plain centred message without axes. With no text, an empty placeholder.
+    """
+    fig = go.Figure()
+    fig.update_layout(
+        height=height,
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=20, r=20, t=20, b=20),
+    )
+    if text:
+        fig.add_annotation(text=text, xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False,
+                           font=dict(size=15, color="#868e96"))
+    return fig
 
 # colors of iteration series ("Iteration Colors" selector)
 palettes = {

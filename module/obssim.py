@@ -5,7 +5,7 @@ import plotly.express as px
 import numpy as np
 import pandas as pd
 from utils import parse_zip
-from plotting import colorscales
+from plotting import colorscales, message_figure
 from pst import get_obssim
 from layout import update_jco_iter, about
 
@@ -44,7 +44,7 @@ layout = html.Div([
         dmc.Switch(id=name+"invcmap", label="Inverse colormap", checked=True, style={"width": "150px"}),
         dmc.Button("Plot Similarity", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
-    dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
+    dcc.Loading(dcc.Graph(id=name+"plot", figure=message_figure("Load data, then click 'Plot Similarity'."), style={"margin-bottom":"90px"})),
 ])
 
 
@@ -71,14 +71,14 @@ def upload_pest(data):
 )
 def plot(clicks, data, nobs, iiter, highr, palette, invcmap, normalized):
     if clicks is None or clicks == 0:
-        return px.scatter(title="Upload data and click 'Plot Similarity' to see plot")
+        return message_figure("Load data, then click 'Plot Similarity'.")
     if data is None or data == {}:
-        return px.scatter(title="No data uploaded. Please upload data and click 'Plot Similarity' to see plot")
+        return message_figure("No data loaded. Load data on the Upload Data page, then click 'Plot Similarity'.")
     pst, par, obs, pars, reis, jcos = parse_zip(data, False, False, True)
     if obs is None:
-        return px.scatter(title="No .pst file found in zip file.")
+        return message_figure("No .pst file found in zip file.")
     if not jcos:
-        return px.scatter(title="No .jco file found in zip file.")
+        return message_figure("No .jco file found in zip file.")
 
     jco0 = jcos[int(iiter)]
     mask = jco0.index.isin(obs.obsname)

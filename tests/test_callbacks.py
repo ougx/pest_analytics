@@ -17,6 +17,10 @@ _pst, _par, _obs, _pars, _reis, _jcos = read_pest_zip(str(_ZIP), True, True, Tru
 GOOD_RESULT  = (_pst, _par, _obs, _pars, _reis, _jcos)
 NO_PST_RESULT = ("", None, None, {}, {}, {})
 
+def _message(fig):
+    """text of a placeholder figure (plotting.message_figure)"""
+    return " ".join(a.text for a in fig.layout.annotations)
+
 # Stable references derived from the real data — used as test arguments.
 _PST_NAME     = _pst                                         # "Napa2026_04"
 _FIRST_OBS    = _obs["obsname"].iloc[0]                      # "64221_1"
@@ -324,11 +328,11 @@ def test_resinfl_missing_files_return_message():
     no_jco = (_pst, _par, _obs, _pars, _reis, {})
     with patch("module.resinfl.parse_zip", return_value=no_jco):
         fig = plot(1, {"pestpath": "dummy"}, "1", "obsgrp", "weight", "Jet", True, "Log", "Linear")
-    assert "No .jco" in fig.layout.title.text
+    assert "No .jco" in _message(fig)
     no_rei = (_pst, _par, _obs, _pars, {5: _reis[5]}, _jcos)
     with patch("module.resinfl.parse_zip", return_value=no_rei):
         fig = plot(1, {"pestpath": "dummy"}, "2", "obsgrp", "weight", "Jet", True, "Log", "Linear")
-    assert "No .rei" in fig.layout.title.text
+    assert "No .rei" in _message(fig)
 
 
 # ---------------------------------------------------------------------------
@@ -457,7 +461,7 @@ def test_obsconf_focus_zero_weight_target(mock_pz):
     zero = _obs[_obs.weight == 0]["obsname"].iloc[0]
     fbar, _, _ = plot_focus("obsname", [zero], "obsname", "10", "10",
                             {"pestpath": "dummy"}, "1", "weight", "Parameters")
-    assert "no pull" in fbar.layout.title.text
+    assert "no pull" in _message(fbar)
 
 def test_obsconf_focus_nothing_selected():
     from module.obsconf import plot_focus
@@ -503,7 +507,7 @@ def test_tsplot_without_time_column():
     no_time = (_pst, _par, _obs.drop(columns="time"), _pars, _reis, _jcos)
     with patch("module.tsplot.parse_zip", return_value=no_time):
         fig = plot(1, {"pestpath": "dummy"}, "grpSite", _FIRST_SITE, "Greyout", "Lines+Markers", "Jet", False)
-    assert "time" in fig.layout.title.text
+    assert "time" in _message(fig)
 
 @patch("module.parsen.parse_zip", return_value=NO_HP_RESULT)
 def test_parsen_without_hp(mock_pz):
@@ -526,7 +530,7 @@ def test_phiupdate_flags_unreasonable_residuals():
     bad[3]["residual"] = 1e30
     with patch("module.phiupdate.parse_zip", return_value=(_pst, _par, _obs, _pars, bad, _jcos)):
         fig = phi_figure({"pestpath": "dummy"}, "obsgrp", "weight")
-    assert "rei.3" in fig.layout.title.text
+    assert "rei.3" in _message(fig)
 
 @patch("module.phiupdate.parse_zip", return_value=GOOD_RESULT)
 def test_phiupdate_includes_regularization_groups(mock_pz):
@@ -596,3 +600,25 @@ def test_obssen_jacobian_colored_by_previous_iteration(mock_pz):
     assert [t.name for t in lines] == [f"Jacobian {i}" for i in range(1, _N_ITER + 1)]
     for t in lines:
         assert t.line.color == values[f"Iter {int(t.name.split()[1]) - 1}"]
+
+
+# ---------------------------------------------------------------------------
+# every graph starts as a plain placeholder, not an empty chart with axes
+# ---------------------------------------------------------------------------
+
+def _graphs(component):
+    from dash import dcc
+    if isinstance(component, dcc.Graph):
+        yield component
+    children = getattr(component, "children", None)
+    for child in children if isinstance(children, (list, tuple)) else [children]:
+        if child is not None and hasattr(child, "to_plotly_json"):
+            yield from _graphs(child)
+
+def test_initial_figures_are_placeholders():
+    from module import apps
+    graphs = [g for page in apps.values() for g in _graphs(page.layout)]
+    assert len(graphs) >= 15
+    for g in graphs:
+        fig = go.Figure(g.figure)
+        assert fig.layout.xaxis.visible is False and fig.layout.yaxis.visible is False, g.id

@@ -9,7 +9,7 @@ from dash import dcc, html, Input, Output, State, callback, no_update
 import dash_mantine_components as dmc
 from utils import parse_zip, isiterable
 from layout import about
-from plotting import palettes
+from plotting import palettes, message_figure
 
 
 name = __name__.lstrip("module.") + "-"
@@ -45,7 +45,7 @@ layout = dmc.Stack(
             dmc.Select(id=name+"layout", label="Layout:", data=["Horizontal", "Vertical"], value="Horizontal", style={"width": "150px"}),
             dmc.Button("Plot Parameter", id=name+"update-plot", color="blue"),
         ], mt=10, align="flex-end"),
-        dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
+        dcc.Loading(dcc.Graph(id=name+"plot", figure=message_figure("Load data, then click 'Plot Parameter'."), style={"margin-bottom":"90px"})),
     ]
 )
 
@@ -89,18 +89,18 @@ def upload_pest(data):
 def update_plot(clicks, data, valcol, pargroup, partrans, nearbound, bndlimit, palette, vscale, layout):
     # print("pargroup value:", pargroup)
     if clicks is None or clicks == 0:
-        return px.scatter(title="Upload data and click 'Plot Parameter' to see plot")
+        return message_figure("Load data, then click 'Plot Parameter'.")
 
     if data is None:
-        return px.scatter(title="Upload data to see plot")
+        return message_figure("Load data, then click 'Plot Parameter'.")
 
     pst, par, obs, pars, reis, jcos = parse_zip(data, True)
 
     if par is None:
-        return px.scatter(title="No .pst file found in zip")
+        return message_figure("No .pst file found in zip")
 
     if pars is None or len(pars) == 0:
-        return px.scatter(title="No .par file found in zip")
+        return message_figure("No .par file found in zip")
 
     niter = len(pars)
     dfs = []

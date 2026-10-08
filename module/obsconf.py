@@ -6,6 +6,7 @@ from plotly.subplots import make_subplots
 import numpy as np
 import pandas as pd
 from utils import parse_zip
+from plotting import message_figure
 from pst import get_obs_pull, get_par_tension, get_jco_rei
 from layout import update_groups, update_weights, update_jco_iter, about
 
@@ -68,8 +69,8 @@ layout = html.Div([
         dmc.Select(id=name+"ngrp", label="Number of Obs Groups:", data=["10", "20", "30", "50", "100"], value="30", style={"width": "150px"}),
         dmc.Button("Plot Conflicts", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
-    dcc.Loading(dcc.Graph(id=name+"bar", figure=go.Figure(layout=dict(height=450, )))),
-    dcc.Loading(dcc.Graph(id=name+"heat", figure=go.Figure(layout=dict(height=450, )))),
+    dcc.Loading(dcc.Graph(id=name+"bar", figure=message_figure("Load data, then click 'Plot Conflicts'."))),
+    dcc.Loading(dcc.Graph(id=name+"heat", figure=message_figure())),
     html.H4("Drill-down", style={"margin-top": "20px"}),
     dmc.Group([
         dmc.MultiSelect(id=name+"sankey-par", label="Parameters (click a bar or heatmap cell to add):",
@@ -78,7 +79,7 @@ layout = html.Div([
         dmc.Select(id=name+"nlinks", label="Targets per Parameter:", data=["5", "10", "20", "40"], value="10", style={"width": "150px"}),
         dmc.Switch(id=name+"normalize", label="Normalize per parameter", checked=True, style={"width": "200px"}),
     ], mt=10, align="flex-end"),
-    dcc.Loading(dcc.Graph(id=name+"sankey", figure=go.Figure(layout=dict(height=650, )))),
+    dcc.Loading(dcc.Graph(id=name+"sankey", figure=message_figure('Select parameter(s) above, or click a bar or heatmap cell.'))),
     html.H4("Target Focus", style={"margin-top": "20px"}),
     dmc.Group([
         dmc.Select(id=name+"focus-type", label="Focus by:", data=["obsname"], value="obsname", style={"width": "150px"}),
@@ -88,9 +89,9 @@ layout = html.Div([
         dmc.Select(id=name+"fnpar", label="Number of Parameters:", data=["10", "20", "30", "50"], value="20", style={"width": "150px"}),
         dmc.Select(id=name+"fnopp", label="Number of Targets:", data=["10", "20", "30", "50"], value="20", style={"width": "150px"}),
     ], mt=10, align="flex-end"),
-    dcc.Loading(dcc.Graph(id=name+"fbar", figure=go.Figure(layout=dict(height=550, )))),
-    dcc.Loading(dcc.Graph(id=name+"fopp", figure=go.Figure(layout=dict(height=400, )))),
-    dcc.Loading(dcc.Graph(id=name+"fsankey", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
+    dcc.Loading(dcc.Graph(id=name+"fbar", figure=message_figure('Select the target(s) to focus on, or click a heatmap cell.'))),
+    dcc.Loading(dcc.Graph(id=name+"fopp", figure=message_figure())),
+    dcc.Loading(dcc.Graph(id=name+"fsankey", figure=message_figure(), style={"margin-bottom":"90px"})),
 ])
 
 
@@ -181,14 +182,14 @@ def get_group_pull(data, iiter, weight, grp, plevel):
 )
 def plot(clicks, data, iiter, weight, grp, plevel, npar, ngrp):
     if clicks is None or clicks == 0:
-        msg = px.scatter(title="Upload data and click 'Plot Conflicts' to see plot")
-        return msg, go.Figure(), no_update, no_update
+        msg = message_figure("Load data, then click 'Plot Conflicts'.")
+        return msg, message_figure(), no_update, no_update
     if data is None or data == {}:
-        msg = px.scatter(title="No data uploaded. Please upload data and click 'Plot Conflicts' to see plot")
-        return msg, go.Figure(), no_update, no_update
+        msg = message_figure("No data loaded. Load data on the Upload Data page, then click 'Plot Conflicts'.")
+        return msg, message_figure(), no_update, no_update
     G, msg = get_group_pull(data, iiter, weight, grp, plevel)
     if G is None:
-        return px.scatter(title=msg), go.Figure(), no_update, no_update
+        return message_figure(msg), message_figure(), no_update, no_update
 
     T = get_par_tension(G).sort_values("tension", ascending=False)
     top = T.iloc[:int(npar)]
@@ -270,15 +271,15 @@ def add_par(barclick, heatclick, selected):
 )
 def plot_sankey(selected, grp, nlinks, normalize, data, iiter, weight, plevel):
     if not selected:
-        return px.scatter(title="Select parameter(s) above, or click a bar or heatmap cell, to see which targets pull them")
+        return message_figure("Select parameter(s) above, or click a bar or heatmap cell, to see which targets pull them")
     if data is None or data == {}:
-        return px.scatter(title="No data uploaded.")
+        return message_figure("No data loaded.")
     G, msg = get_group_pull(data, iiter, weight, grp, plevel)
     if G is None:
-        return px.scatter(title=msg)
+        return message_figure(msg)
     selected = [p for p in selected if p in G.columns]
     if not selected:
-        return px.scatter(title="Selected parameter(s) not found. Click 'Plot Conflicts' again.")
+        return message_figure("Selected parameter(s) not found. Click 'Plot Conflicts' again.")
     return sankey_figure(G[selected], int(nlinks), normalize, grp)
 
 
@@ -383,14 +384,14 @@ def focus_from_heatmap(click, grp):
 )
 def plot_focus(ftype, focus, vsgrp, npar, nopp, data, iiter, weight, plevel):
     if not focus:
-        msg = px.scatter(title="Select the target(s) to focus on, or click a heatmap cell")
-        return msg, go.Figure(), go.Figure()
+        msg = message_figure("Select the target(s) to focus on, or click a heatmap cell")
+        return msg, message_figure(), message_figure()
     if data is None or data == {}:
-        msg = px.scatter(title="No data uploaded.")
-        return msg, go.Figure(), go.Figure()
+        msg = message_figure("No data loaded.")
+        return msg, message_figure(), message_figure()
     pull, obs, msg = load_pull(data, iiter, weight, plevel)
     if pull is None:
-        return px.scatter(title=msg), go.Figure(), go.Figure()
+        return message_figure(msg), message_figure(), message_figure()
 
     if ftype == "obsname":
         key = pull.index.to_series()
@@ -399,8 +400,8 @@ def plot_focus(ftype, focus, vsgrp, npar, nopp, data, iiter, weight, plevel):
     mask = key.isin(focus).values
     F = pull[mask].sum()
     if not mask.any() or (F == 0).all():
-        msg = px.scatter(title="The selected target(s) have no pull (zero weight or zero residual).")
-        return msg, go.Figure(), go.Figure()
+        msg = message_figure("The selected target(s) have no pull (zero weight or zero residual).")
+        return msg, message_figure(), message_figure()
     others = pull[~mask]
     O = group_pull(others, obs, vsgrp)
     label = ", ".join(focus) if len(focus) <= 3 else f"{len(focus)} {ftype} selected"

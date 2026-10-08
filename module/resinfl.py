@@ -4,7 +4,7 @@ from dash import html, dcc, Input, Output, State, callback, no_update
 import dash_mantine_components as dmc
 import plotly.express as px
 from utils import parse_zip
-from plotting import colorscales
+from plotting import colorscales, message_figure
 import plotly.graph_objects as go
 from pst import get_weighted_jco, get_jco_rei
 from layout import update_groups, update_weights, update_jco_iter, about
@@ -77,7 +77,7 @@ layout = html.Div([
     #     mb=10,
     #     searchable=True,
     # ),
-    dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
+    dcc.Loading(dcc.Graph(id=name+"plot", figure=message_figure("Load data, then click 'Plot Residual'."), style={"margin-bottom":"90px"})),
 ])
 
 
@@ -134,21 +134,21 @@ def upload_grp_weight(data):
 )
 def plot(clicks, data, iiter, grp, weight, palette, invcmap, xscale, yscale, ): # obsgrp
     if clicks is None or clicks == 0:
-        return px.scatter(title="Upload data and click 'Plot Residual' to see plot")
+        return message_figure("Load data, then click 'Plot Residual'.")
     if data is None or data == {}:
-        return px.scatter(title="No data uploaded. Please upload data and click 'Plot Residual' to see plot")
+        return message_figure("No data loaded. Load data on the Upload Data page, then click 'Plot Residual'.")
     pst, par, obs, pars, reis, jcos = parse_zip(data, False, True, True)
     if obs is None:
-        return px.scatter(title="No .pst file found in zip file.")
+        return message_figure("No .pst file found in zip file.")
     if not jcos:
-        return px.scatter(title="No .jco file found in zip file.")
+        return message_figure("No .jco file found in zip file.")
     if not reis:
-        return px.scatter(title="No .rei file found in zip file.")
+        return message_figure("No .rei file found in zip file.")
     if int(iiter) not in jcos:
-        return px.scatter(title=f"No .jco file found for iteration {iiter}.")
+        return message_figure(f"No .jco file found for iteration {iiter}.")
     rei = get_jco_rei(reis, int(iiter))
     if rei is None:
-        return px.scatter(title=f"No .rei file found for iteration {int(iiter)-1} or {iiter}.")
+        return message_figure(f"No .rei file found for iteration {int(iiter)-1} or {iiter}.")
 
     jco0 = jcos[int(iiter)]
     WJ = get_weighted_jco(obs, jco0, weight_col=weight, )

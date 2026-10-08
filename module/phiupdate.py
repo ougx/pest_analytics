@@ -2,6 +2,7 @@ import dash
 from dash import dcc, html, callback, Input, Output, State, no_update
 import dash_mantine_components as dmc
 from utils import parse_zip, isiterable
+from plotting import message_figure
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
@@ -30,7 +31,7 @@ layout = dmc.Stack(
         dmc.Select(id=name+"weight", label="Weighted by:", data=["weight"], value="weight", style={"width": "150px"}),
         dmc.Button("Plot Phi", id=name+"update-plot", color="blue"),
         ], mt=10, align="flex-end"),
-        dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
+        dcc.Loading(dcc.Graph(id=name+"plot", figure=message_figure('Load data to see the Phi plot.'), style={"margin-bottom":"90px"})),
     ]
 )
 
@@ -76,10 +77,8 @@ def phi_figure(data, grp, weight):
                 #print(df)
                 df = df[df[weight]>0].copy()
                 if not pd.api.types.is_numeric_dtype(df.residual) or (df.residual.abs() > 1e20).any():
-                    return go.Figure(layout=dict(
-                        title=f"Unreasonable residuals identified in Iteration {i}. Please check your {pst}.rei.{i} file",
-                        height=650,)
-                    )
+                    return message_figure(
+                        f"Unreasonable residuals identified in Iteration {i}. Please check your {pst}.rei.{i} file")
                 df["phi"] = (df[weight] * df.residual)**2
                 phi[i] = df.groupby(grp).phi.sum()
             phi = pd.DataFrame(phi)
@@ -147,6 +146,4 @@ def phi_figure(data, grp, weight):
             fig.update_yaxes(title="Parameter Variance", showgrid=False, secondary_y=True)
             return fig
 
-    return go.Figure(layout=dict(
-            title="Upload data to see Phi Update plot.",
-            height=650,))
+    return message_figure("Load data to see the Phi plot.")
