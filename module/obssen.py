@@ -63,7 +63,7 @@ def upload_grp(data):
     Input (name+"otype", "value"),
     Input (name+"grp", "value"),
 )
-def upload_pest(data, otype, grp):
+def fill_observations(data, otype, grp):
     return update_obs(data, otype, grp)
 
 

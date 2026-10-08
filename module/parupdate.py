@@ -63,10 +63,10 @@ layout = dmc.Stack(
     Output(name+"pargroup", "value"),
     Input ("pest-data", "data"),
 )
-def upload_pest(data):
+def fill_groups(data):
     if data is None or data == {}:
         return [no_update, no_update]
-    pst, par, obs, pars, jcos, reis = parse_zip(data, False, False, False)
+    pst, par, obs, pars, reis, jcos = parse_zip(data, False, False, False)
     if par is None:
         return [no_update, no_update]
     else:

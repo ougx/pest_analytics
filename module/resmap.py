@@ -119,7 +119,7 @@ layout = html.Div([
     Output(name+"years", "disabled"),
     Input("pest-data", "data"),
 )
-def upload_pest(data):
+def fill_options(data):
     pst, par, obs, pars, reis, jcos = parse_zip(data, False, True, False)
     if not pst or not reis:
         return [no_update] * 12

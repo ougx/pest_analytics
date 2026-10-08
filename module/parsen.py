@@ -79,7 +79,7 @@ layout = html.Div([
     Output(name+"grp"   , "value"),
     Input ("pest-data", "data"),
 )
-def upload_pest(data):
+def fill_lists(data):
     if data is None or data == {}:
         return no_update
     pst, par, obs, pars, reis, jcos = parse_zip(data, False, False, False)

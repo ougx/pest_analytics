@@ -415,8 +415,8 @@ def test_obsconf_sankey_nothing_selected():
 
 @patch("layout.parse_zip", return_value=GOOD_RESULT)
 def test_obsconf_iterations_pair_with_previous_rei(mock_pz):
-    from module.obsconf import upload_pest
-    iters, value = upload_pest({"pestpath": "dummy"})
+    from module.obsconf import fill_iterations
+    iters, value = fill_iterations({"pestpath": "dummy"})
     assert iters == [str(i) for i in range(1, _N_ITER + 1)]
     assert value == str(_N_ITER)
 

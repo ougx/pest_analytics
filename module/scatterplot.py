@@ -79,7 +79,7 @@ layout = html.Div([
     Output(name+"grp", "value"),
     Input( "pest-data", "data"),
 )
-def upload_pest(data):
+def fill_groups(data):
     return update_groups(data, "grpType")
 
 @callback(
@@ -87,14 +87,14 @@ def upload_pest(data):
     State( "pest-data", "data"),
     Input( name+"grp" , "value"),
 )
-def upload_pest(data, grp):
+def fill_sites(data, grp):
     return update_obs(data, "Observation Group", grp, filter_zeroweight=False)
 
 @callback(
     Output(name+"site", "value"),
     Input(name+"site", "data"),
 )
-def upload_pest(data):
+def select_site(data):
     return data[0]
 
 @callback(

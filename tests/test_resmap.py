@@ -106,9 +106,9 @@ def test_click_opens_time_series():
 
 
 def test_time_series_keeps_site_chosen_on_map():
-    from module.tsplot import upload_pest
-    assert upload_pest(["a", "napar_napa"], "napar_napa") == "napar_napa"
-    assert upload_pest(["a", "b"], "napar_napa") == "a"
+    from module.tsplot import select_site
+    assert select_site(["a", "napar_napa"], "napar_napa") == "napar_napa"
+    assert select_site(["a", "b"], "napar_napa") == "a"
 
 
 def test_map_csv_has_coordinates(mapped_data):

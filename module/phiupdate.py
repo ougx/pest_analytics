@@ -44,7 +44,7 @@ layout = dmc.Stack(
     Output(name+"weight", "value"),
     Input( "pest-data", "data"),
 )
-def upload_pest(data):
+def fill_lists(data):
     return update_groups(data, "grpType") + update_weights(data, "weight")
 
 

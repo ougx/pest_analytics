@@ -86,7 +86,7 @@ layout = html.Div([
     Output(name+"grp", "value"),
     Input( "pest-data", "data"),
 )
-def upload_pest(data):
+def fill_groups(data):
     return update_groups(data, "grpSite")
 
 @callback(
@@ -94,7 +94,7 @@ def upload_pest(data):
     State( "pest-data", "data"),
     Input( name+"grp" , "value"),
 )
-def upload_pest(data, grp):
+def fill_sites(data, grp):
     return update_obs(data, "Observation Group", grp, filter_zeroweight=False)
 
 @callback(
@@ -102,7 +102,7 @@ def upload_pest(data, grp):
     Input(name+"site", "data"),
     State(name+"site", "value"),
 )
-def upload_pest(data, site):
+def select_site(data, site):
     # keep a site chosen elsewhere (e.g. clicked on the Residual Map) if it is still an option
     return site if site in data else data[0]
 

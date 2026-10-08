@@ -63,7 +63,7 @@ layout = html.Div([
     Output(name+"iter", "value"),
     Input( "pest-data", "data"),
 )
-def upload_pest(data):
+def fill_iterations(data):
     return update_jco_iter(data)
 
 
