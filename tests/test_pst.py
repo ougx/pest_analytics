@@ -218,3 +218,28 @@ def test_jco_rei_pairs_with_previous_iteration():
     assert get_jco_rei(reis, 3) == "rei2"      # no rei.3 needed for jco.3
     assert get_jco_rei({2: "rei2"}, 2) == "rei2"  # fallback when rei.(N-1) missing
     assert get_jco_rei({}, 1) is None
+
+
+# ---------------------------------------------------------------------------
+# parameter_change (Phi Evolution's parameter variance)
+# ---------------------------------------------------------------------------
+
+def test_parameter_change_by_name_and_transform():
+    from pst import parameter_change
+    pars = pd.DataFrame(dict(
+        parname=["b", "a", "c", "d", "e"],
+        parval=[10.0, 2.0, 3.0, 5.0, 7.0],
+        parval0=[1.0, 4.0, 3.0, 1.0, 1.0],
+        partrans=["log", "none", "log", "fixed", "tied"],
+    ))
+    change = parameter_change(pars)
+    assert sorted(change.index) == ["a", "b", "c"]          # fixed and tied excluded
+    assert np.isclose(change["b"], 1.0)                      # log10(10/1)
+    assert np.isclose(change["a"], -0.5)                     # (2 - 4)/4
+    assert change["c"] == 0
+
+def test_parameter_change_real_iteration(pars_dict, par_df):
+    from pst import parameter_change
+    change = parameter_change(pars_dict[6])
+    assert len(change) == int(par_df.partrans.isin(["log", "none"]).sum())
+    assert np.isfinite(change).all()

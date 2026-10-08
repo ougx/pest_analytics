@@ -121,3 +121,16 @@ def get_jco_rei(reis, iiter):
     Falls back to .rei.N if .rei.(N-1) is not available; returns None if neither is.
     """
     return reis.get(iiter - 1, reis.get(iiter))
+
+
+def parameter_change(pars):
+    """
+    Change of each adjustable parameter from its initial value, by name: log10(p/p0) for
+    log-transformed parameters and (p - p0)/|p0| for untransformed ones (fixed and tied excluded).
+    pars: a .par iteration merged with the .pst parameter data (parval, parval0, partrans).
+    """
+    df = pars.set_index("parname")
+    df = df[df.partrans.isin(["log", "none"])]
+    p, p0 = df.parval.astype(float), df.parval0.astype(float)
+    relative = (p - p0) / p0.abs().where(p0 != 0)
+    return pd.Series(np.where(df.partrans == "log", np.log10(p / p0), relative), index=df.index)

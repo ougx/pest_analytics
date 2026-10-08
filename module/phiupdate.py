@@ -2,6 +2,7 @@ import dash
 from dash import dcc, html, callback, Input, Output, State, no_update
 import dash_mantine_components as dmc
 from utils import parse_zip, isiterable
+from pst import parameter_change
 from plotting import message_figure
 import plotly.express as px
 import plotly.graph_objects as go
@@ -124,8 +125,7 @@ def phi_figure(data, grp, weight):
             vars = {0:0}
             for i, df in pars.items():
                 if i == 0: continue
-                v = ((df.parval - par.parval0.values) / par.parval0.values)
-                vars[i] = v[par.partrans!="fixed"].var()
+                vars[i] = parameter_change(df).var()
 
             variance = pd.Series(vars).sort_index().rename("Parameter Variance")
             fig.add_trace(go.Scatter(
@@ -138,7 +138,9 @@ def phi_figure(data, grp, weight):
             ), secondary_y=True)
 
             fig.update_layout(
-                title="Phi Update by Group; % not included regul group; Parameter variance = var((ParVal - Parval0) / Parval0)",
+                title="Phi Update by Group; % not included regul group<br>"
+                      "<sup>Parameter variance = variance of log10(p/p0) for log parameters and (p - p0)/|p0| for "
+                      "untransformed parameters (adjustable parameters only)</sup>",
                 height=650,
             )
             fig.update_xaxes(title="Iteration", )
