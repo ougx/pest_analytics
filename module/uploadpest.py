@@ -1,4 +1,3 @@
-import dash
 from dash import html, dcc, Input, Output, callback, clientside_callback, State, no_update, ALL
 import dash_mantine_components as dmc
 import os

@@ -5,7 +5,6 @@ mock always returns data that reflects the actual PEST run structure.
 """
 import pathlib
 from unittest.mock import patch
-import pytest
 from dash import no_update
 
 from utils import read_pest_zip

@@ -23,7 +23,7 @@ md = dcc.Markdown('''
     The correlation matrix $R$ is a normalized form of the covariance matrix $C$, with elements defined as:
 
     $$
-                   p_{ij} = \\frac{C_{ij}}{\sqrt{C_{ii}C_{jj}}}
+                   p_{ij} = \\frac{C_{ij}}{\\sqrt{C_{ii}C_{jj}}}
     $$
 
     The correlation coefficient $p_{ij}$ ranges between -1 and 1. Diagonal elements $p_{ii}$ are always equal to 1,

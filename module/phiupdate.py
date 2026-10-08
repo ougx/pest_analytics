@@ -1,10 +1,8 @@
-import dash
-from dash import dcc, html, callback, Input, Output, State, no_update
+from dash import dcc, html, callback, Input, Output, State
 import dash_mantine_components as dmc
-from utils import parse_zip, isiterable
+from utils import parse_zip
 from pst import parameter_change
 from plotting import message_figure
-import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from plotly.subplots import make_subplots

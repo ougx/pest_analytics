@@ -1,7 +1,6 @@
 from dash import html, dcc, Input, Output, State, callback, no_update, ctx
 import dash_mantine_components as dmc
 import plotly.graph_objects as go
-import plotly.express as px
 from plotly.subplots import make_subplots
 import numpy as np
 import pandas as pd

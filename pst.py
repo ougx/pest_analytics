@@ -84,22 +84,6 @@ def get_obsinflu(obs, jco0, filter_insensitivetive=True, weight_col="weight"):
     leverage = np.diag(H)
     return pd.Series(leverage, index=WJ.index).sort_values(ascending=False)
 
-def get_dataworth(obs, jco0, filter_insensitivetive=True):
-    """
-    Compute observation data worth by leave-one-out analysis
-    """
-    Jm = J.values
-    base = np.trace(np.linalg.pinv(Jm @ Jm.T))
-
-    worth = {}
-    for j, obs in enumerate(J.columns):
-        J_sub = np.delete(Jm, j, axis=1)
-        val = np.trace(np.linalg.pinv(J_sub @ J_sub.T))
-        worth[obs] = val - base
-
-    return pd.Series(worth).sort_values(ascending=False)
-
-
 def jacobian_sensitivity(jcos, obs, stype, weight_col="weight", parameters=None, observations=None):
     """
     Weighted sensitivities of every Jacobian ("Jacobian k" columns), as (magnitude, signed):

@@ -1,6 +1,5 @@
 """Tests for the Residual Map page, using the example run with a synthetic site.csv."""
 import pathlib
-import shutil
 import zipfile
 import numpy as np
 import pandas as pd

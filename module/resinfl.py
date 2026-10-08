@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
-from dash import html, dcc, Input, Output, State, callback, no_update
+from dash import html, dcc, Input, Output, State, callback
 import dash_mantine_components as dmc
-import plotly.express as px
 from utils import parse_zip
 from plotting import colorscales, message_figure
 import plotly.graph_objects as go
@@ -27,7 +26,7 @@ md = dcc.Markdown('''
     `.jco.N` is computed at the parameters of iteration N-1, so it is paired with the residuals in `.rei.(N-1)` (`.hp` for N = 1).
     Standardized Residual is calculated as follows:
     $$
-        r^*_j = \\frac{r_j}{\sqrt{\sigma^2(1 - H_{jj})}}
+        r^*_j = \\frac{r_j}{\\sqrt{\\sigma^2(1 - H_{jj})}}
     $$
 
     In this figure, observations can be divided into four quadrant:

@@ -1,14 +1,11 @@
-from dash import html, dcc, Input, Output, State, callback, no_update
+from dash import html, dcc, Input, Output, State, callback
 import dash_mantine_components as dmc
 import plotly.graph_objects as go
-import plotly.express as px
 from plotting import stats_table, palettes, residual_stats, message_figure, iteration_colors, select_iterations
 import pandas as pd
-from utils import parse_zip, isiterable
-from pst import get_obssim, get_obscor
+from utils import parse_zip
 from layout import update_weights, update_groups, update_obs, update_rei_iter, about, graph
 from plotly.subplots import make_subplots
-import numpy as np
 
 name = __name__.removeprefix("module.") + "-"
 fullname = "Time Series Plot"

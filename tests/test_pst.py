@@ -6,7 +6,6 @@ for any valid PEST dataset.
 """
 import numpy as np
 import pandas as pd
-import pytest
 
 from pst import (
     get_weighted_jco,

@@ -15,7 +15,6 @@ import dash
 import dash_mantine_components as dmc
 # dash-mantine-components >= 0.14 needs React 18; Dash 2.x defaults to React 16
 dash._dash_renderer._set_react_version("18.2.0")
-from dash import Input, Output, dcc, html, callback, State
 from module import apps, sections
 
 

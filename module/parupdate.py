@@ -4,10 +4,9 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import dash
 from dash import dcc, html, Input, Output, State, callback, no_update
 import dash_mantine_components as dmc
-from utils import parse_zip, isiterable
+from utils import parse_zip
 from layout import about, graph
 from plotting import palettes, message_figure
 

@@ -1,4 +1,4 @@
-from dash import html, dcc, Input, Output, State, callback, no_update
+from dash import html, dcc, Input, Output, State, callback
 import dash_mantine_components as dmc
 import plotly.express as px
 import plotly.graph_objects as go
