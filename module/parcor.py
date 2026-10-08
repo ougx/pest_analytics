@@ -5,6 +5,7 @@ import plotly.express as px
 import numpy as np
 import pandas as pd
 from utils import parse_zip, isiterable
+from plotting import colorscales
 from layout import update_jco_iter, about
 
 name = __name__.lstrip("module.") + "-"
@@ -44,7 +45,7 @@ layout = html.Div([
         dmc.Select(id=name+"npar", label="Number of Parameters:", data=["5", "10", "20", "30", "40", "50", "100"], value="40", style={"width": "150px"}),
         dmc.Select(id=name+"iter", label="Iteration:", data=["1"], value="1", style={"width": "150px"}),
         dmc.Select(id=name+"highr", label="Highlight Limit:", data=["0.90","0.95","0.98", "0.99"], value="0.98", style={"width": "150px"}),
-        dmc.Select(id=name+"palette", label="Color Palette:", data=["Jet","Plotly3","Viridis","BrBG","RdBu","RdYlBu"], value="RdBu", style={"width": "150px"}),
+        dmc.Select(id=name+"palette", label="Color Scale:", data=colorscales, value=colorscales[0], style={"width": "150px"}),
         dmc.Switch(id=name+"invcmap", label="Inverse colormap", checked=True, style={"width": "150px"}),
         dmc.Button("Plot Correlation", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),

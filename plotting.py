@@ -1,6 +1,7 @@
 import numpy as np
 import plotly.express as px
 
+# colors of iteration series ("Iteration Colors" selector)
 palettes = {
     "Jet": px.colors.sequential.Jet,
     "Plotly": px.colors.qualitative.Plotly,
@@ -8,6 +9,9 @@ palettes = {
     "Dark24": px.colors.qualitative.Dark24,
     "Alphabet": px.colors.qualitative.Alphabet,
 }
+
+# continuous color scales for matrices and signed values ("Color Scale" selector)
+colorscales = ["RdBu", "BrBG", "RdYlBu", "Jet", "Viridis", "Plotly3"]
 
 stat_names = "RMSE R2 MeanAbsResid MeanResid MinResid MaxResid".split()
 

@@ -4,6 +4,7 @@ from dash import html, dcc, Input, Output, State, callback, no_update
 import dash_mantine_components as dmc
 import plotly.express as px
 from utils import parse_zip
+from plotting import colorscales
 import plotly.graph_objects as go
 from pst import get_weighted_jco, get_jco_rei
 from layout import update_groups, update_weights, update_jco_iter, about
@@ -62,7 +63,7 @@ layout = html.Div([
         dmc.Select(id=name+"weight", label="Weighted by:", data=["weight"], value="weight", style={"width": "150px"}),
     ], mt=10, align="flex-end"),
     dmc.Group([
-        dmc.Select(id=name+"palette", label="Color Palette:", data=["Jet","Plotly3","Viridis","BrBG","RdBu","RdYlBu"], value="Jet", style={"width": "150px"}),
+        dmc.Select(id=name+"palette", label="Color Scale:", data=colorscales, value=colorscales[0], style={"width": "150px"}),
         dmc.Switch(id=name+"invcmap", label="Inverse colormap", checked=True, style={"width": "150px"}),
         dmc.Select(id=name+"xscale", label="X Scale:", data=["Linear", "Log"], value="Log", style={"width": "150px"}),
         dmc.Select(id=name+"yscale", label="Y Scale:", data=["Linear", "Log"], value="Linear", style={"width": "150px"}),

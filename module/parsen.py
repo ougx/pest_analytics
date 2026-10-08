@@ -57,7 +57,7 @@ layout = html.Div([
                    data=["Observations", "Obs Groups"], value="Observations", style={"width": "150px"}),
         dmc.Select(id=name+"grp"   , label="Grouped by:" , data=["obsgrp"], value="obsgrp", style={"width": "150px"}),
         dmc.Select(id=name+"nobs", label="# of Obs/Grp:", data=["5", "10", "20", "30", "40", "50"], value="50", style={"width": "150px"}),
-        dmc.Select(id=name+"palette", label="Color Palette:", data=list(palettes.keys()), value="Jet", style={"width": "150px"}),
+        dmc.Select(id=name+"palette", label="Iteration Colors:", data=list(palettes.keys()), value="Jet", style={"width": "150px"}),
         dmc.Button("Plot Sensitivity", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
     dmc.MultiSelect(

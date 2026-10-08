@@ -79,7 +79,7 @@ layout = dmc.Stack(
             dmc.Select(id=name+"bndlimit", label="Bound Limit:", data="100% 99% 98% 95% 90%".split(), value="98%", style={"width": "150px"}),
         ], mt=10, align="flex-end"),
         dmc.Group([
-            dmc.Select(id=name+"palette", label="Color Palette:", data=list(palettes.keys()), value="Jet", style={"width": "150px"}),
+            dmc.Select(id=name+"palette", label="Iteration Colors:", data=list(palettes.keys()), value="Jet", style={"width": "150px"}),
             dmc.Select(id=name+"vscale", label="Value Scale:", data=["linear", "log"], value="linear", style={"width": "150px"}),
             dmc.Select(id=name+"layout", label="Layout:", data=["Horizontal", "Vertical"], value="Horizontal", style={"width": "150px"}),
             dmc.Button("Plot Parameter", id=name+"update-plot", color="blue"),

@@ -64,7 +64,7 @@ layout = html.Div([
     ], mt=10, align="flex-end"),
     dmc.Group([
         dmc.Select(id=name+"plottype", label="Plot Type:", data=["Lines+Markers", "Lines", "Markers", ], value="Lines+Markers", style={"width": "150px"}),
-        dmc.Select(id=name+"palette", label="Color Palette:", data=list(palettes.keys()), value="Jet", style={"width": "150px"}),
+        dmc.Select(id=name+"palette", label="Iteration Colors:", data=list(palettes.keys()), value="Jet", style={"width": "150px"}),
         dmc.Switch(id=name+"invcmap", label="Inverse colormap", checked=False, style={"width": "150px"}),
         dmc.Button("Plot Time Series", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
