@@ -42,6 +42,13 @@ layout = html.Div([
     html.H3("or", style={"text-align": "center"}),
     upload,
     dmc.Button("Load Data", id="btn-parsedata", my=20, size="large", fullWidth=True),
+    dmc.Text([
+        "Specify or upload a zip file containing PEST files (*.pst, *.rei, *.par, *.jco, *.hp).",
+        html.Br(),
+        "Optional obs.csv [obsname, grp*, time] and par.csv [parname, grp*] in the zip file can be used to regroup observations and parameters.",
+        html.Br(),
+        "Phi is calculated from the .rei files; the initial Phi is calculated from the .hp file or the .rei.0 file.",
+    ], size="sm", c="dimmed"),
     dcc.Store(id="pest-data", storage_type="memory"),
 ])
 
@@ -70,9 +77,4 @@ def upload_pest(data):
         pst, par, obs, pars, jcos, reis = parse_zip(data, False, False, False)
         if pst:
             return [f"Zipfile successfully parsed. Analyzing {pst}...", "phiupdate"]
-    return [html.Div(["No file uploaded or specified. Please specify or upload a zip file containing PEST files.",
-        html.Br(),
-        "Optional obs.csv[obsname,obsgp] and par.csv[parname,pargp] in the zip file can be used to reassign observation and parameter groups.",
-        html.Br(),
-        "Phi calculated from `.rei` files. Initial Phi value is calculated from `.hp` file or `.rei.0` file."
-    ],), "uploadpest"]
+    return ["No data loaded.", "uploadpest"]

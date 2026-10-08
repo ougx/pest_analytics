@@ -38,9 +38,11 @@ scripts = [
     "https://unpkg.com/hotkeys-js/dist/hotkeys.min.js",
 ]
 
+TITLE = "PEST_HP_ANALYTICS"
+
 app = dash.Dash(
     __name__,
-    title="SSPA|PEST_HP_ANALYTICS",
+    title="SSPA|" + TITLE,
     # use_pages=True,
     external_scripts=scripts,
     external_stylesheets=stylesheets,
@@ -57,7 +59,7 @@ sspa_logo = dmc.Anchor(dmc.Image(
 
 layout = dmc.AppShell(
     [
-        dmc.AppShellHeader(dmc.Group([sspa_logo, dmc.Title('PEST_ANALYTICS', order=2)]), px=80, py=10),
+        dmc.AppShellHeader(dmc.Group([sspa_logo, dmc.Title(TITLE, order=2)]), px=80, py=10),
         # dmc.AppShellNavbar(
         #     id="navbar",
         #     children=[
@@ -81,11 +83,12 @@ layout = dmc.AppShell(
                 id="main-tabs",
             ),
         ]),
-        dmc.AppShellFooter(html.Div(html.B('This is Status', id="home-status"), style={"padding-left": 205}), ),
+        dmc.AppShellFooter(dmc.Text("No data loaded.", id="home-status", size="sm", fw=600), px="md", py=8),
     ],
     header={
         "height": {"base": 60, "md": 70, "lg": 80},
     },
+    footer={"height": 36},
     # navbar={
     #     "width": {"base": 200, "md": 300, "lg": 400},
     #     "breakpoint": "sm",
