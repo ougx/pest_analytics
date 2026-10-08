@@ -81,10 +81,11 @@ def test_update_pest_data_saves_upload_on_server(tmp_path, monkeypatch):
     assert utils.upload_path(result["upload"]) is not None
     assert utils.parse_zip(result)[0] == _PST_NAME
 
-def test_update_pest_data_no_click_returns_none():
+def test_update_pest_data_no_click_keeps_loaded_data():
+    from dash import no_update
     from module.uploadpest import update_pest_data
     result = update_pest_data(0, "file.zip", "base64==", None)
-    assert result is None
+    assert result is no_update
 
 
 # ---------------------------------------------------------------------------

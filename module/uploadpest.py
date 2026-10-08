@@ -1,5 +1,5 @@
 import dash
-from dash import html, dcc, Input, Output, callback, State
+from dash import html, dcc, Input, Output, callback, clientside_callback, State, no_update
 import dash_mantine_components as dmc
 from utils import parse_zip, save_upload
 
@@ -52,7 +52,11 @@ layout = html.Div([
         html.Br(),
         "Phi is calculated from the .rei files; the initial Phi is calculated from the .hp file or the .rei.0 file.",
     ], size="sm", c="dimmed"),
+    # pages listen to pest-data. Its small reference (a path or upload key) is also saved in the
+    # browser's sessionStorage, so a page reload in this browser tab restores the loaded data.
     dcc.Store(id="pest-data", storage_type="memory"),
+    dcc.Store(id="pest-saved", storage_type="memory"),
+    dcc.Location(id="pest-url"),
 ])
 
 
@@ -65,8 +69,31 @@ layout = html.Div([
 )
 def update_pest_data(nclick, filename, contents, pestpath):
     # the uploaded file is saved on the server; the browser only keeps its key
-    if nclick:
-        return {"filename": filename, "upload": save_upload(contents) if contents else None, "pestpath":pestpath}
+    if not nclick:
+        return no_update
+    return {"filename": filename, "upload": save_upload(contents) if contents else None, "pestpath":pestpath}
+
+
+# (dcc.Store's own session storage is reset to its initial value at start-up here, so the
+# reference is saved and restored with sessionStorage directly)
+clientside_callback(
+    """function (data) {
+        if (data) { window.sessionStorage.setItem("pest-data", JSON.stringify(data)); }
+        return window.dash_clientside.no_update;
+    }""",
+    Output("pest-saved", "data"),
+    Input("pest-data", "data"),
+)
+
+clientside_callback(
+    """function (pathname) {
+        const saved = window.sessionStorage.getItem("pest-data");
+        return saved ? JSON.parse(saved) : window.dash_clientside.no_update;
+    }""",
+    Output("pest-data", "data", allow_duplicate=True),
+    Input("pest-url", "pathname"),
+    prevent_initial_call="initial_duplicate",  # runs on page load
+)
 
 
 
