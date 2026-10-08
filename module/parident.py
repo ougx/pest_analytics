@@ -1,10 +1,8 @@
-from dash import html, dcc, Input, Output, State, callback, no_update
+from dash import html, dcc, Input, Output, State, callback
 import dash_mantine_components as dmc
-import plotly.graph_objects as go
 import plotly.express as px
-import numpy as np
-import pandas as pd
-from utils import parse_zip, isiterable
+from utils import parse_zip
+from pst import get_identifiability
 from plotting import message_figure
 from layout import update_weights, update_jco_iter, about, graph
 
@@ -96,33 +94,13 @@ def plot(clicks, data, iiter, svdtrunc, layout, weight="weight"):
     if not jcos:
         return message_figure("No .jco file found in zip file.")
 
-    csplimit = 1e-10
-    nobs_useful = (obs[weight] > 0).sum()
-
-    jco0 = jcos[int(iiter)]
-    mask = jco0.index.isin(obs.obsname)
-    jco = jco0.loc[mask, ]
-    WJ = jco * obs.set_index("obsname").loc[jco.index, weight].values[:, None]
-    csp = (WJ**2).sum() ** 0.5 / nobs_useful
-    mask = WJ.columns.isin(csp[csp>csplimit].index)
-    JJ = WJ.loc[:,mask]
-
-
-    U, s, Vt = np.linalg.svd(JJ, full_matrices=False)
-    V = Vt.T
-    # EIGTHRESH is a ratio of eigenvalues of J^T Q J, i.e. of squared singular values of Q^1/2 J
-    eig_ratio = (s / s[0])**2
-    V1 = V[:, eig_ratio >= float(svdtrunc)]
-
-    V1 = pd.DataFrame(V1, index=JJ.columns, columns=['eig'+str(i+1) for i in range(V1.shape[1])])
-    f = np.diag(V1 @ V1.T)
-    f = pd.Series(f, index=JJ.columns)
+    f, nkept, nvec = get_identifiability(obs, jcos[int(iiter)], float(svdtrunc), weight_col=weight)
     fig = px.bar(
         x=f.index if layout=="Horizontal" else f,
         y=f if layout=="Horizontal" else f.index,
     )
 
-    fig.update_layout(title=f"Solution space: {V1.shape[1]} of {len(s)} singular vectors "
+    fig.update_layout(title=f"Solution space: {nkept} of {nvec} singular vectors "
                             f"(eigenvalue ratio >= {float(svdtrunc):g})")
     if layout == "Horizontal":
         fig.update_layout(

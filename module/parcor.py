@@ -1,10 +1,11 @@
-from dash import html, dcc, Input, Output, State, callback, no_update
+from dash import html, dcc, Input, Output, State, callback
 import dash_mantine_components as dmc
 import plotly.graph_objects as go
 import plotly.express as px
 import numpy as np
 import pandas as pd
-from utils import parse_zip, isiterable
+from utils import parse_zip
+from pst import get_cor
 from plotting import colorscales, message_figure
 from layout import update_weights, update_jco_iter, about, graph
 
@@ -96,24 +97,8 @@ def plot(clicks, data, npar, iiter, highr, palette, invcmap, weight="weight"):
     if not jcos:
         return message_figure("No .jco file found in zip file.")
 
-    csplimit = 1e-10
-    nobs_useful = (obs[weight] > 0).sum()
-
-    jco0 = jcos[int(iiter)]
-    mask = jco0.index.isin(obs.obsname)
-    jco = jco0.loc[mask, ]
-    WJ = jco * obs.set_index("obsname").loc[jco.index, weight].values[:, None]
-    csp = (WJ**2).sum() ** 0.5 / nobs_useful
-    mask = WJ.columns.isin(csp[csp>csplimit].index)
-    JJ = WJ.loc[:,mask]
-    J2 = np.matmul(JJ.T, JJ)
-    try:
-        cov = np.linalg.inv(J2)
-    except:
-        cov = np.linalg.pinv(J2)
-    std = np.sqrt(np.diag(cov))
-    cor = cov / np.outer(std, std)
-    cor = pd.DataFrame(cor, index=J2.columns, columns=J2.columns)
+    # regularization observations are kept (prior information is not read, see review 2.1)
+    cor = get_cor(obs, jcos[int(iiter)], weight_col=weight, remove_regul=False)
 
     rmax = (cor - np.identity(len(cor))).abs().max().dropna().sort_values()
     mask = cor.index.isin(rmax.index[-int(npar):])

@@ -15,6 +15,7 @@ from pst import (
     get_obssim,
     get_obscor,
     get_obsinflu,
+    get_identifiability,
     get_obs_pull,
     get_par_tension,
     get_jco_rei,
@@ -153,6 +154,25 @@ def test_obscor_bounded(obs_df, jco_df):
     valid = Sc.values[~np.isnan(Sc.values)]
     assert (valid >= -1.0 - 1e-8).all()
     assert (valid <=  1.0 + 1e-8).all()
+
+
+# ---------------------------------------------------------------------------
+# get_identifiability
+# ---------------------------------------------------------------------------
+
+def test_identifiability_bounds_and_count(obs_df, jco_df):
+    ident, nkept, nvec = get_identifiability(obs_df, jco_df, 0.0)
+    assert nkept == nvec == len(ident)        # every direction kept: all parameters fully identifiable
+    np.testing.assert_allclose(ident.values, 1.0, atol=1e-8)
+
+def test_identifiability_cutoff_on_eigenvalue_ratio():
+    # weighted Jacobian with singular values 1 and 0.01 -> eigenvalue ratio 1e-4
+    obs = pd.DataFrame(dict(obsname=["o1", "o2"], weight=[1.0, 1.0], obsgrp=["g", "g"]))
+    jco = pd.DataFrame([[1.0, 0.0], [0.0, 0.01]], index=["o1", "o2"], columns=["a", "b"])
+    ident, nkept, nvec = get_identifiability(obs, jco, 1e-3)
+    assert (nkept, nvec) == (1, 2)
+    assert ident.round(8).to_dict() == {"a": 1.0, "b": 0.0}
+    assert get_identifiability(obs, jco, 1e-5)[1] == 2
 
 
 # ---------------------------------------------------------------------------
