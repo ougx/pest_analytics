@@ -16,7 +16,7 @@ import dash_mantine_components as dmc
 # dash-mantine-components >= 0.14 needs React 18; Dash 2.x defaults to React 16
 dash._dash_renderer._set_react_version("18.2.0")
 from dash import Input, Output, dcc, html, callback, State
-from module import apps
+from module import apps, sections
 
 
 stylesheets = [
@@ -57,6 +57,15 @@ sspa_logo = dmc.Anchor(dmc.Image(
     href="https://www.sspa.com",
 )
 
+def nav_items():
+    """tab list grouped into sections, each with a small heading"""
+    items = []
+    for section, pages in sections.items():
+        items.append(dmc.Text(section, size="xs", fw=700, c="dimmed", tt="uppercase", mt="sm", mb=4, px="sm"))
+        items += [dmc.TabsTab(v.fullname, value=k, size="large", style={"display": "block"}) for k, v in pages.items()]
+    return items
+
+
 layout = dmc.AppShell(
     [
         dmc.AppShellHeader(dmc.Group([sspa_logo, dmc.Title(TITLE, order=2)]), px=80, py=10),
@@ -73,7 +82,7 @@ layout = dmc.AppShell(
 
             dmc.Tabs(
                 [
-                    dmc.TabsList([dmc.TabsTab(v.fullname, value=k, size="large", style={"display": "block"}) for k, v in apps.items()] ),] + [
+                    dmc.TabsList(nav_items()),] + [
                     dmc.TabsPanel(v.layout, value=k, id="tab-"+k, style={"padding-left":20}) for k, v in apps.items()
                 ],
                 # color="red", # default is blue

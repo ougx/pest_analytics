@@ -12,16 +12,27 @@ from . import (
     resinfl,
 )
 
-apps = {
-    "uploadpest":uploadpest,
-    "phiupdate":phiupdate,
-    "scatterplot":scatterplot,
-    "tsplot":tsplot,
-    "parupdate":parupdate,
-    "parsen":parsen,
-    "parcor":parcor,
-    "obssen":obssen,
-    "obssim":obssim,
-    "obsconf":obsconf,
-    "resinfl":resinfl,
+# navigation sections, in display order
+sections = {
+    "Data": {
+        "uploadpest":uploadpest,
+    },
+    "Fit": {
+        "phiupdate":phiupdate,
+        "scatterplot":scatterplot,
+        "tsplot":tsplot,
+        "resinfl":resinfl,
+    },
+    "Parameters": {
+        "parupdate":parupdate,
+        "parsen":parsen,
+        "parcor":parcor,
+    },
+    "Observations": {
+        "obssen":obssen,
+        "obssim":obssim,
+        "obsconf":obsconf,
+    },
 }
+
+apps = {k: v for pages in sections.values() for k, v in pages.items()}
