@@ -100,6 +100,41 @@ def get_dataworth(obs, jco0, filter_insensitivetive=True):
     return pd.Series(worth).sort_values(ascending=False)
 
 
+def jacobian_sensitivity(jcos, obs, stype, weight_col="weight", parameters=None, observations=None):
+    """
+    Weighted sensitivities of every Jacobian ("Jacobian k" columns), as (magnitude, signed):
+    - parameters given: one row per observation, summed over those parameters;
+    - observations given: one row per parameter, summed over those observations.
+    magnitude is the sum of |w J| ("L1 Norm") or of (w J)^2 (otherwise; rank_sensitivity takes
+    the square root, so rows can be summed by group first). signed is the sum of w J.
+    """
+    w = obs.set_index("obsname")[weight_col]
+    magnitude, signed = {}, {}
+    for k, jco in jcos.items():
+        if parameters is not None:
+            J = jco.loc[jco.index.isin(w.index), parameters]
+            wJ, axis = w.loc[J.index].values[:, None] * J, 1
+        else:
+            wJ, axis = w.loc[observations].values[:, None] * jco.loc[observations], 0
+        signed[f"Jacobian {k}"] = wJ.sum(axis=axis)
+        magnitude[f"Jacobian {k}"] = (wJ.abs() if stype == "L1 Norm" else wJ**2).sum(axis=axis)
+    return pd.DataFrame(magnitude), pd.DataFrame(signed)
+
+
+def rank_sensitivity(magnitude, signed, stype, n):
+    """
+    The n rows of jacobian_sensitivity output with the largest sensitivity (each Jacobian
+    scaled by its maximum), as (sensitivity, marker symbols: triangle-up where signed > 0).
+    """
+    if stype != "L1 Norm":
+        magnitude = magnitude**0.5
+    top = (magnitude / magnitude.max(axis=0).values[None, :]).sum(axis=1)
+    top = top.sort_values(ascending=False).index[:int(n)]
+    magnitude = magnitude.loc[top]
+    symbols = pd.DataFrame(np.where(signed.loc[top] > 0, "triangle-up", "triangle-down"), columns=magnitude.columns)
+    return magnitude, symbols
+
+
 def get_obs_pull(obs, jco0, rei, weight_col="weight", filter_insensitivetive=True):
     """
     Pull of each observation on each parameter: P_ij = 2 w_i^2 r_i J_ij = -dphi_i/dp_j

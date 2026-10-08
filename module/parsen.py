@@ -4,10 +4,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotting import palettes, message_figure
 from utils import parse_zip, isiterable
-import pandas as pd
-import numpy as np
 from plotly.subplots import make_subplots
-from pst import get_jco_rei
+from pst import get_jco_rei, jacobian_sensitivity, rank_sensitivity
 from layout import update_weights, update_groups, about, graph
 
 name = __name__.removeprefix("module.") + "-"
@@ -133,30 +131,11 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, parselect, weight="weig
     if not isiterable(parselect):
         parselect = [parselect]
 
-    ddf = {} # aggregated sensitivity
-    sdf = {} # (raw)signed sensitivity
-    for i, df0 in jcos.items():
-        df = pd.merge(df0, obs, left_index=True, right_on="obsname", suffixes=(None, "_1"))
-        df.set_index("obsname", inplace=True)
-        sdf[f"Jacobian {i}"] = (df[weight].values[:, None] * df[parselect]).sum(axis=1)
-        if stype == "L1 Norm":
-            ddf[f"Jacobian {i}"] =  (df[weight].values[:, None] * df[parselect] .abs()).sum(axis=1)
-        else:
-            ddf[f"Jacobian {i}"] = ((df[weight].values[:, None] * df[parselect])**2).sum(axis=1)
-    sdf = pd.DataFrame(sdf, )
-    ddf = pd.DataFrame(ddf, )
+    ddf, sdf = jacobian_sensitivity(jcos, obs, stype, weight, parameters=parselect)
     if otype == "Obs Groups":
         ddf = ddf.groupby(obs.set_index("obsname").loc[ddf.index, grp]).sum()
         sdf = sdf.groupby(obs.set_index("obsname").loc[sdf.index, grp]).sum()
-
-    if stype == "L2 Norm":
-        ddf = ddf**0.5
-
-    tot = (ddf / ddf.max(axis=0).values[None,:]).sum(axis=1)
-    tot = tot.sort_values(ascending=False).iloc[:int(nobs)]
-    ddf = ddf.loc[tot.index]
-    sdf = sdf.loc[tot.index]
-    sdf = pd.DataFrame(np.where(sdf>0, "triangle-up", "triangle-down"), columns=ddf.columns)
+    ddf, sdf = rank_sensitivity(ddf, sdf, stype, nobs)
 
     pp = {"Iter 0": par.set_index("parname").loc[parselect, "parval0"]}
     for i, df in sorted(pars.items()):

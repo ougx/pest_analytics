@@ -4,9 +4,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotting import palettes, message_figure
 from utils import parse_zip, isiterable
-import pandas as pd
-import numpy as np
 from plotly.subplots import make_subplots
+from pst import jacobian_sensitivity, rank_sensitivity
 from layout import update_weights, update_obs, update_groups, about, graph
 
 name = __name__.removeprefix("module.") + "-"
@@ -106,31 +105,12 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, obsselect, weight="weig
         obsselect = [obsselect]
 
 
-    ddf = {} # aggregated sensitivity
-    sdf = {} # (raw)signed sensitivity
     if otype == "Observations":
         oo = obs[obs["obsname"].isin(obsselect)]
     else:
         oo = obs[obs[grp].isin(obsselect)]
     obsselect = oo.obsname.tolist()
-    for i, jco0 in jcos.items():
-        df = jco0.loc[oo.obsname]
-        sdf[f"Jacobian {i}"] = (oo[weight].values[:, None] * df).sum(axis=0)
-        if stype == "L1 Norm":
-            ddf[f"Jacobian {i}"] =  (oo[weight].values[:, None] * df .abs()).sum(axis=0)
-        else:
-            ddf[f"Jacobian {i}"] = ((oo[weight].values[:, None] * df)**2).sum(axis=0)
-    sdf = pd.DataFrame(sdf, )
-    ddf = pd.DataFrame(ddf, )
-
-    if stype == "L2 Norm":
-        ddf = ddf**0.5
-
-    tot = (ddf / ddf.max(axis=0).values[None,:]).sum(axis=1)
-    tot = tot.sort_values(ascending=False).iloc[:int(nobs)]
-    ddf = ddf.loc[tot.index]
-    sdf = sdf.loc[tot.index]
-    sdf = pd.DataFrame(np.where(sdf>0, "triangle-up", "triangle-down"), columns=ddf.columns)
+    ddf, sdf = rank_sensitivity(*jacobian_sensitivity(jcos, obs, stype, weight, observations=obsselect), stype, nobs)
 
     # one color per iteration; Jacobian k is computed at the parameters of iteration k-1 and gets its color
     iters = sorted(set(reis) | {k - 1 for k in jcos})

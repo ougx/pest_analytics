@@ -16,6 +16,8 @@ from pst import (
     get_obscor,
     get_obsinflu,
     get_identifiability,
+    jacobian_sensitivity,
+    rank_sensitivity,
     get_obs_pull,
     get_par_tension,
     get_jco_rei,
@@ -173,6 +175,40 @@ def test_identifiability_cutoff_on_eigenvalue_ratio():
     assert (nkept, nvec) == (1, 2)
     assert ident.round(8).to_dict() == {"a": 1.0, "b": 0.0}
     assert get_identifiability(obs, jco, 1e-5)[1] == 2
+
+
+# ---------------------------------------------------------------------------
+# jacobian_sensitivity / rank_sensitivity
+# ---------------------------------------------------------------------------
+
+def _sen_data():
+    obs = pd.DataFrame(dict(obsname=["o1", "o2", "o3"], weight=[1.0, 2.0, 0.0], obsgrp=["g"] * 3))
+    jco = pd.DataFrame([[1.0, -3.0], [-1.0, 0.5], [5.0, 5.0], [9.0, 9.0]],
+                       index=["o1", "o2", "o3", "prior1"], columns=["a", "b"])
+    return obs, {2: jco}
+
+def test_jacobian_sensitivity_by_observation():
+    obs, jcos = _sen_data()
+    mag, signed = jacobian_sensitivity(jcos, obs, "L1 Norm", parameters=["a", "b"])
+    assert list(mag.columns) == ["Jacobian 2"]
+    assert list(mag.index) == ["o1", "o2", "o3"]             # rows not in the observation data are left out
+    assert mag["Jacobian 2"].tolist() == [4.0, 3.0, 0.0]     # sum |w J| over a and b
+    assert signed["Jacobian 2"].tolist() == [-2.0, -1.0, 0.0]
+
+def test_jacobian_sensitivity_by_parameter():
+    obs, jcos = _sen_data()
+    mag, signed = jacobian_sensitivity(jcos, obs, "L2 Norm", observations=["o1", "o2"])
+    assert mag["Jacobian 2"].to_dict() == {"a": 5.0, "b": 10.0}   # sum (w J)^2, not yet rooted
+    assert signed["Jacobian 2"].to_dict() == {"a": -1.0, "b": -2.0}
+
+def test_rank_sensitivity_top_n_and_symbols():
+    mag = pd.DataFrame({"Jacobian 1": [1.0, 4.0, 9.0], "Jacobian 2": [16.0, 4.0, 0.0]}, index=["x", "y", "z"])
+    signed = pd.DataFrame({"Jacobian 1": [1.0, -1.0, 1.0], "Jacobian 2": [-1.0, 1.0, 1.0]}, index=["x", "y", "z"])
+    top, symbols = rank_sensitivity(mag, signed, "L2 Norm", 2)
+    # rooted: x (1, 4), y (2, 2), z (3, 0); scaled by column max: x 1/3+1, y 2/3+1/2, z 1+0
+    assert list(top.index) == ["x", "y"]
+    assert top.loc["x"].tolist() == [1.0, 4.0]
+    assert symbols.values.tolist() == [["triangle-up", "triangle-down"], ["triangle-down", "triangle-up"]]
 
 
 # ---------------------------------------------------------------------------
