@@ -1,7 +1,22 @@
 """common functions for updating layout components
 """
 from dash import no_update
+import dash_mantine_components as dmc
 from utils import parse_zip
+
+
+def about(md, label="About this analysis"):
+    """collapsed panel holding a page's explanation, so the controls and plots come first"""
+    return dmc.Accordion(
+        dmc.AccordionItem([
+            dmc.AccordionControl(label),
+            dmc.AccordionPanel(md),
+        ], value="about"),
+        value=None,
+        variant="contained",
+        chevronPosition="left",
+        mb=10,
+    )
 
 def update_groups(data, default_value="obsgrp"):
     """add observation group columns"""

@@ -8,6 +8,7 @@ import dash
 from dash import dcc, html, Input, Output, State, callback, no_update
 import dash_mantine_components as dmc
 from utils import parse_zip, isiterable
+from layout import about
 from plotting import palettes
 
 
@@ -69,7 +70,7 @@ def chip_group(id, label=None, options=["All"], value=[], multiple=True,  **kwar
 layout = dmc.Stack(
     [
         html.H3(fullname),
-        md,
+        about(md),
         chip_group(name+"valcol"  , options=["Raw", "Relative", "Absolute", "Normalized"], multiple=False, value="Relative", label="Value Type:"),
         chip_group(name+"pargroup", options=["pargp1", "pargp2", "pargp3"], multiple=True, value=["pargp1", "pargp2", "pargp3"], label="Parameter Group:"),
         chip_group(name+"partrans", options=["none", "log", "tied", "fixed"], multiple=True, value=["none", "log", "tied"], label="Transformation Type:"),

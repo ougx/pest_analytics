@@ -6,7 +6,7 @@ import plotly.express as px
 from utils import parse_zip
 import plotly.graph_objects as go
 from pst import get_weighted_jco, get_jco_rei
-from layout import update_groups, update_weights
+from layout import update_groups, update_weights, about
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Residual Analysis"
@@ -55,7 +55,7 @@ md = dcc.Markdown('''
 
 layout = html.Div([
     html.H3(fullname),
-    md,
+    about(md),
     dmc.Group([
         dmc.Select(id=name+"iter", label="Iteration:", data=["1"], value="1", style={"width": "150px"}),
         dmc.Select(id=name+"grp"   , label="Grouped by:" , data=["obsgrp"], value="obsgrp", style={"width": "150px"}),

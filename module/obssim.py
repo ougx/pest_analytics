@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from utils import parse_zip
 from pst import get_obssim
-from layout import update_niter
+from layout import update_niter, about
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Observation Similarity"
@@ -31,7 +31,7 @@ md = dcc.Markdown('''
 
 layout = html.Div([
     html.H3(fullname),
-    md,
+    about(md),
     dmc.Group([
         dmc.Select(id=name+"nobs", label="Number of Observations:", data=["5", "10", "20", "30", "40", "50", "100"], value="40", style={"width": "150px"}),
         dmc.Select(id=name+"iter", label="Iteration:", data=["1"], value="1", style={"width": "150px"}),

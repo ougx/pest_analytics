@@ -6,7 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from plotly.subplots import make_subplots
-from layout import update_groups, update_weights
+from layout import update_groups, update_weights, about
 
 # dash.register_page(__name__, path='/')
 
@@ -24,7 +24,7 @@ md = dcc.Markdown('''
 layout = dmc.Stack(
     [
         html.H3(fullname),
-        md,
+        about(md),
         dmc.Group([
         dmc.Select(id=name+"grp"   , label="Grouped by:" , data=["obsgrp"], value="obsgrp", style={"width": "150px"}),
         dmc.Select(id=name+"weight", label="Weighted by:", data=["weight"], value="weight", style={"width": "150px"}),

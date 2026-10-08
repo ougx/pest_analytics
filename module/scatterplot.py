@@ -6,7 +6,7 @@ from plotting import palettes, residual_stats, stat_names
 import pandas as pd
 from utils import parse_zip, isiterable
 from pst import get_obssim, get_obscor
-from layout import update_groups, update_obs
+from layout import update_groups, update_obs, about
 from plotly.subplots import make_subplots
 import numpy as np
 
@@ -49,7 +49,7 @@ md = dcc.Markdown('''
 
 layout = html.Div([
     html.H3(fullname),
-    md,
+    about(md),
     dmc.Group([
         dmc.Select(id=name+"grp", label="Group Column:", data=["grpSite"], value="grpSite", style={"width": "150px"}),
         dmc.Select(id=name+"site", label="Select Group:", data=["Well1"], value="Well1", style={"width": "150px"}, searchable=True),

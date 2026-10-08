@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from utils import parse_zip
 from pst import get_obs_pull, get_par_tension, get_jco_rei
-from layout import update_groups, update_weights
+from layout import update_groups, update_weights, about
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Observation Conflict"
@@ -26,7 +26,7 @@ md = dcc.Markdown('''
                   P_{ij} = -\\frac{\\partial \\phi_i}{\\partial p_j} = 2 w_i^2 r_i J_{ij},
     $$
     where $w_i$ is the weight, $r_i$ = measured - modelled is the residual, and $J$ is the Jacobian matrix. $P_{ij} > 0$ (red) means target $i$ wants
-    parameter $j$ to <span style="color:#d62728">increase</span>; $P_{ij} < 0$ (blue) means it wants $j$ to <span style="color:#1f77b4">decrease</span>.
+    parameter $j$ to increase; $P_{ij} < 0$ (blue) means it wants $j$ to decrease.
     For log-transformed parameters the Jacobian is with respect to $\\log_{10}p$, so pulls are comparable between parameters.
     `.jco.N` is computed at the parameters of iteration N-1, so it is paired with the residuals in `.rei.(N-1)` (`.hp` for N = 1).
 
@@ -53,12 +53,12 @@ md = dcc.Markdown('''
     inconsistent data/weights, rather than a poorly estimated parameter. The analysis is linear and only valid near the parameters where
     the Jacobian was computed; a conflict on one parameter may be resolved by another parameter.
     ''',
-    mathjax=True, dangerously_allow_html=True)
+    mathjax=True)
 
 
 layout = html.Div([
     html.H3(fullname),
-    md,
+    about(md),
     dmc.Group([
         dmc.Select(id=name+"iter", label="Jacobian Iteration:", data=["1"], value="1", style={"width": "150px"}),
         dmc.Select(id=name+"weight", label="Weighted by:", data=["weight"], value="weight", style={"width": "150px"}),
