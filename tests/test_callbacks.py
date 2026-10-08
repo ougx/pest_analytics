@@ -33,20 +33,41 @@ _N_ITER       = len(_pars)                                   # 6
 @patch("module.uploadpest.parse_zip", return_value=GOOD_RESULT)
 def test_uploadpest_callback_success(mock_pz):
     from module.uploadpest import upload_pest
-    status, tab = upload_pest({"pestpath": "dummy"})
+    status, tab, msg = upload_pest({"pestpath": "dummy"})
     assert _PST_NAME in status
     assert tab == "phiupdate"
+    assert msg.color == "green" and f"{len(_obs)} observations" in msg.children
 
 @patch("module.uploadpest.parse_zip", return_value=NO_PST_RESULT)
 def test_uploadpest_callback_no_pst(mock_pz):
     from module.uploadpest import upload_pest
-    status, tab = upload_pest({"pestpath": "dummy"})
+    status, tab, msg = upload_pest({"pestpath": "dummy"})
     assert tab == "uploadpest"
+    assert msg.color == "red" and "No .pst" in msg.children
 
 def test_uploadpest_callback_no_data():
     from module.uploadpest import upload_pest
-    status, tab = upload_pest(None)
+    status, tab, msg = upload_pest(None)
+    assert tab == "uploadpest" and msg is None
+
+def test_uploadpest_callback_missing_path():
+    from module.uploadpest import upload_pest
+    status, tab, msg = upload_pest({"pestpath": "Z:/no/such/run.zip", "upload": None})
     assert tab == "uploadpest"
+    assert msg.color == "red" and "File not found" in msg.children
+
+def test_uploadpest_callback_bad_zip(tmp_path):
+    from module.uploadpest import upload_pest
+    bad = tmp_path / "broken.zip"
+    bad.write_bytes(b"this is not a zip file")
+    status, tab, msg = upload_pest({"pestpath": str(bad)})
+    assert tab == "uploadpest"
+    assert msg.color == "red" and "Could not read" in msg.children
+
+def test_upload_shows_selected_file_name():
+    from module.uploadpest import show_upload_name, UPLOAD_PROMPT
+    assert "run.zip" in show_upload_name("run.zip")
+    assert show_upload_name(None) == UPLOAD_PROMPT
 
 def test_update_pest_data_saves_upload_on_server(tmp_path, monkeypatch):
     import base64

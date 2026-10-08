@@ -7,9 +7,11 @@ name = __name__.lstrip("module.") + "-"
 fullname = "Upload Data"
 
 
+UPLOAD_PROMPT = "Drag and drop a Zip file containing PEST files (*.pst, *.rei, *.par, *.jco)"
+
 upload = dcc.Upload(
     id="upload-pest",
-    children="Drag and drop a Zip file containing PEST files (*.pst, *.rei, *.par, *.jco)",
+    children=UPLOAD_PROMPT,
     style={
         "border": "1px dashed",
         "width": "100%",
@@ -42,6 +44,7 @@ layout = html.Div([
     html.H3("or", style={"text-align": "center"}),
     upload,
     dmc.Button("Load Data", id="btn-parsedata", my=20, size="large", fullWidth=True),
+    html.Div(id="upload-message"),
     dmc.Text([
         "Specify or upload a zip file containing PEST files (*.pst, *.rei, *.par, *.jco, *.hp).",
         html.Br(),
@@ -68,13 +71,40 @@ def update_pest_data(nclick, filename, contents, pestpath):
 
 
 @callback(
+    Output("upload-pest", "children"),
+    Input("upload-pest", "filename"),
+)
+def show_upload_name(filename):
+    if filename:
+        return f"Selected: {filename} (click Load Data, or drop another file to replace it)"
+    return UPLOAD_PROMPT
+
+
+def message(text, color):
+    return dmc.Alert(text, color=color, variant="light", mb=10)
+
+
+@callback(
     Output("home-status", "children"),
     Output("main-tabs", "value"),
+    Output("upload-message", "children"),
     Input("pest-data", "data"),
+    running=[(Output("btn-parsedata", "loading"), True, False)],
 )
 def upload_pest(data):
-    if data:
-        pst, par, obs, pars, jcos, reis = parse_zip(data, False, False, False)
-        if pst:
-            return [f"Zipfile successfully parsed. Analyzing {pst}...", "phiupdate"]
-    return ["No data loaded.", "uploadpest"]
+    if not data:
+        return ["No data loaded.", "uploadpest", None]
+    name = data.get("pestpath") or data.get("filename") or "the zip file"
+    try:
+        pst, par, obs, pars, reis, jcos = parse_zip(data, True, True, False)
+    except Exception as e:
+        return ["No data loaded.", "uploadpest", message(f"Could not read {name}: {e}", "red")]
+    if pst is None:
+        if data.get("pestpath") and not data.get("upload"):
+            return ["No data loaded.", "uploadpest", message(f"File not found: {data['pestpath']}", "red")]
+        return ["No data loaded.", "uploadpest", message("Specify a path or drop a zip file first.", "yellow")]
+    if pst == "":
+        return ["No data loaded.", "uploadpest", message(f"No .pst file found in {name}.", "red")]
+    summary = (f"Loaded {pst}: {len(obs)} observations ({int((obs.weight > 0).sum())} weighted), "
+               f"{len(par)} parameters, {len(pars)} iterations.")
+    return [f"Loaded {pst}", "phiupdate", message(summary, "green")]
