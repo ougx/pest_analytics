@@ -37,7 +37,8 @@ md = dcc.Markdown('''
 # basemap name -> (tile URL, attribution); drawn as a raster layer so its transparency can be set
 BASEMAPS = {
     "OpenStreetMap": ("https://tile.openstreetmap.org/{z}/{x}/{y}.png", "© OpenStreetMap contributors"),
-    "Light (Carto)": ("https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", "© OpenStreetMap contributors © CARTO"),
+    "Light gray (Esri)": ("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+                          "Esri, HERE, Garmin, © OpenStreetMap contributors"),
     "Topographic (USGS)": ("https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}",
                            "USGS The National Map"),
     "Satellite (USGS)": ("https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}",
