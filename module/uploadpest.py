@@ -2,7 +2,7 @@ import dash
 from dash import html, dcc, Input, Output, callback, clientside_callback, State, no_update, ALL
 import dash_mantine_components as dmc
 import os
-from utils import parse_zip, save_upload, read_sites
+from utils import parse_zip, save_upload, read_sites, check_pest_files
 from geo import read_layers, guess_category, LAYER_CATEGORIES
 
 name = __name__.lstrip("module.") + "-"
@@ -50,7 +50,9 @@ layout = html.Div([
     dmc.Button("Load Data", id="btn-parsedata", my=20, size="large", fullWidth=True),
     html.Div(id="upload-message"),
     dmc.Text([
-        "Specify or upload a zip file containing PEST files (*.pst, *.rei, *.par, *.jco, *.hp).",
+        "Specify or upload a zip file of PEST_HP (or PEST) output: case.pst, the per-iteration case.rei.N, case.par.N and "
+        "case.jco.N files, and case.hp (with PEST, set REISAVEITN, PARSAVEITN and JCOSAVEITN to save them). "
+        "PEST++ output (e.g. .jcb, case.N.par) is not read.",
         html.Br(),
         "Optional obs.csv [obsname, grp*, time] and par.csv [parname, grp*] in the zip file can be used to regroup observations and parameters.",
         html.Br(),
@@ -264,4 +266,5 @@ def upload_pest(data):
             messages[0] = message(summary + f" site.csv: {len(sites)} sites with coordinates.", "green")
     except ValueError as e:
         messages.append(message(f"site.csv was not used: {e}", "yellow"))
+    messages += [message(w, "yellow") for w in check_pest_files(data)]
     return [f"Loaded {pst}", "phiupdate", messages]

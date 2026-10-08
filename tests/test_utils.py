@@ -482,3 +482,27 @@ def test_read_sites_missing_columns(fresh_cache, tmp_path):
 def test_read_sites_projected_coordinates_rejected(fresh_cache, tmp_path):
     with pytest.raises(ValueError, match="latitude/longitude"):
         fresh_cache.read_sites(_zip_with_sites(tmp_path, "site,lat,lon\nw1,1887920.3,6479526.1\n"))
+
+
+# ---------------------------------------------------------------------------
+# warnings about files the app does not read
+# ---------------------------------------------------------------------------
+
+def _as_file(tmp_path, buf):
+    path = tmp_path / "run.zip"
+    path.write_bytes(buf.getvalue())
+    return {"pestpath": str(path)}
+
+def test_check_pest_files_ok(fresh_cache):
+    assert fresh_cache.check_pest_files({"pestpath": str(TESTDATA_ZIP)}) == []
+    assert fresh_cache.check_pest_files(None) == []
+
+def test_check_pest_files_pestpp(fresh_cache, tmp_path):
+    extra = {"case.jcb": b"x", "case.3.par": b"x", "case.0.par.csv": b"x"}
+    (warning,) = fresh_cache.check_pest_files(_as_file(tmp_path, _rewrite_zip(extra=extra)))
+    assert warning.startswith("3 file(s) look like PEST++ output")
+
+def test_check_pest_files_missing_iterations(fresh_cache, tmp_path):
+    rename = lambda n: n.replace(".jco.", ".jacobian.")
+    (warning,) = fresh_cache.check_pest_files(_as_file(tmp_path, _rewrite_zip(rename=rename)))
+    assert ".jco.N" in warning and "JCOSAVEITN" in warning and ".rei.N" not in warning

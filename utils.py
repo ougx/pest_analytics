@@ -266,6 +266,35 @@ def _read_sites_cached(path, mtime_ns, size):
     return sites.drop_duplicates("site")
 
 
+PESTPP_PATTERN = re.compile(r"(\.jcb$|\.\d+\.(par|rei|jco|obs)(\.csv)?$|\.(par|obs)\.csv$)", re.IGNORECASE)
+ITERATION_PATTERN = re.compile(r"\.(rei|par|jco)\.\d+$", re.IGNORECASE)
+
+
+def check_pest_files(data):
+    """
+    Warnings about the files in the loaded zip: PEST++ output (not read by this app) and missing
+    per-iteration files. The app reads PEST / PEST_HP output: case.pst, case.rei.N, case.par.N,
+    case.jco.N and case.hp.
+    """
+    path = _data_source(data) if check_data(data) else None
+    if not path:
+        return []
+    with zipfile.ZipFile(path) as z:
+        names = z.namelist()
+    warnings = []
+    pestpp = [n for n in names if PESTPP_PATTERN.search(n)]
+    if pestpp:
+        warnings.append(f"{len(pestpp)} file(s) look like PEST++ output (e.g. {os.path.basename(pestpp[0])}), "
+                        "which this app does not read.")
+    found = {m.group(1).lower() for n in names for m in [ITERATION_PATTERN.search(n)] if m}
+    missing = [ext for ext in ("rei", "par", "jco") if ext not in found]
+    if missing:
+        warnings.append("No per-iteration " + ", ".join(f".{e}.N" for e in missing) + " files found; with PEST, set "
+                        + ", ".join({"rei": "REISAVEITN", "par": "PARSAVEITN", "jco": "JCOSAVEITN"}[e] for e in missing)
+                        + " in the control file to save them.")
+    return warnings
+
+
 def parse_zip(data, loadpar=True, loadrei=False, loadjco=False):
     """
     Return (pst, par, obs, pars, reis, jcos) for the loaded data, from the cache.
