@@ -1,7 +1,7 @@
 import dash
 from dash import html, dcc, Input, Output, callback, clientside_callback, State, no_update
 import dash_mantine_components as dmc
-from utils import parse_zip, save_upload
+from utils import parse_zip, save_upload, read_sites
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Upload Data"
@@ -134,4 +134,11 @@ def upload_pest(data):
         return ["No data loaded.", "uploadpest", message(f"No .pst file found in {name}.", "red")]
     summary = (f"Loaded {pst}: {len(obs)} observations ({int((obs.weight > 0).sum())} weighted), "
                f"{len(par)} parameters, {len(pars)} iterations.")
-    return [f"Loaded {pst}", "phiupdate", message(summary, "green")]
+    messages = [message(summary, "green")]
+    try:
+        sites = read_sites(data)
+        if sites is not None:
+            messages[0] = message(summary + f" site.csv: {len(sites)} sites with coordinates.", "green")
+    except ValueError as e:
+        messages.append(message(f"site.csv was not used: {e}", "yellow"))
+    return [f"Loaded {pst}", "phiupdate", messages]

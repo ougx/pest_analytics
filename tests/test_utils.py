@@ -445,3 +445,33 @@ def test_upload_key_is_validated(fresh_cache):
     assert utils.upload_path("../../etc/passwd") is None
     assert utils.upload_path("0" * 32) is None        # well-formed but unknown
     assert utils.parse_zip({"upload": "../x"})[0] is None
+
+
+# ---------------------------------------------------------------------------
+# site.csv (site locations for the residual map); synthetic coordinates
+# ---------------------------------------------------------------------------
+
+def _zip_with_sites(tmp_path, text):
+    path = tmp_path / "run.zip"
+    path.write_bytes(_rewrite_zip(extra={"Data/site.csv": text}).getvalue())
+    return {"pestpath": str(path)}
+
+def test_read_sites(fresh_cache, tmp_path):
+    utils = fresh_cache
+    data = _zip_with_sites(tmp_path, "Site,Latitude,Longitude,Type\nNapaR_Napa,38.1,-121.9,gage\nW1,38.2,-122.0,well\n")
+    sites = utils.read_sites(data)
+    assert list(sites.site) == ["napar_napa", "w1"]          # lower case, like the grp* columns
+    assert list(sites.columns) == ["site", "lat", "lon", "type"]
+    assert sites.lat.tolist() == [38.1, 38.2]
+
+def test_read_sites_absent(fresh_cache):
+    assert fresh_cache.read_sites({"pestpath": str(TESTDATA_ZIP)}) is None
+    assert fresh_cache.read_sites(None) is None
+
+def test_read_sites_missing_columns(fresh_cache, tmp_path):
+    with pytest.raises(ValueError, match="missing: lon"):
+        fresh_cache.read_sites(_zip_with_sites(tmp_path, "site,lat,x\nw1,38.2,6479526\n"))
+
+def test_read_sites_projected_coordinates_rejected(fresh_cache, tmp_path):
+    with pytest.raises(ValueError, match="latitude/longitude"):
+        fresh_cache.read_sites(_zip_with_sites(tmp_path, "site,lat,lon\nw1,1887920.3,6479526.1\n"))

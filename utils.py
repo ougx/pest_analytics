@@ -1,4 +1,5 @@
 import base64
+import functools
 import hashlib
 import io
 import os
@@ -217,6 +218,48 @@ def _cached_read(path, with_jco):
 def clear_cache():
     with _cache_lock:
         _cache.clear()
+    _read_sites_cached.cache_clear()
+
+
+SITE_COLUMNS = {"latitude": "lat", "longitude": "lon", "long": "lon", "lng": "lon"}
+
+
+def read_sites(data):
+    """
+    Site locations from site.csv in the loaded zip: a DataFrame with site (lower case, to match
+    the grp* columns of obs.csv), lat, lon and any extra columns; None if there is no site.csv.
+    Raises ValueError if site.csv is invalid.
+    """
+    if not check_data(data):
+        return None
+    path = _data_source(data)
+    if not path:
+        return None
+    st = os.stat(path)
+    sites = _read_sites_cached(os.path.abspath(path), st.st_mtime_ns, st.st_size)
+    return None if sites is None else sites.copy()
+
+
+@functools.lru_cache(maxsize=8)
+def _read_sites_cached(path, mtime_ns, size):
+    with zipfile.ZipFile(path) as z:
+        names = [n for n in z.namelist() if os.path.basename(n).lower() == "site.csv"]
+        if not names:
+            return None
+        with z.open(names[0]) as f:
+            sites = pd.read_csv(f)
+    sites.columns = [SITE_COLUMNS.get(c.strip().lower(), c.strip().lower()) for c in sites.columns]
+    missing = {"site", "lat", "lon"} - set(sites.columns)
+    if missing:
+        raise ValueError(f"site.csv needs columns site, lat, lon (missing: {', '.join(sorted(missing))})")
+    sites["site"] = sites["site"].astype(str).str.strip().str.lower()
+    for c in ["lat", "lon"]:
+        sites[c] = pd.to_numeric(sites[c], errors="coerce")
+    bad = sites[~sites.lat.between(-90, 90) | ~sites.lon.between(-180, 180)]
+    if len(bad):
+        raise ValueError(f"site.csv has {len(bad)} site(s) without a valid lat/lon, e.g. {bad.site.iloc[0]}"
+                         " (coordinates must be latitude/longitude in decimal degrees)")
+    return sites.drop_duplicates("site")
 
 
 def parse_zip(data, loadpar=True, loadrei=False, loadjco=False):

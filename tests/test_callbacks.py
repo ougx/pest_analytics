@@ -40,7 +40,7 @@ def test_uploadpest_callback_success(mock_pz):
     status, tab, msg = upload_pest({"pestpath": "dummy"})
     assert _PST_NAME in status
     assert tab == "phiupdate"
-    assert msg.color == "green" and f"{len(_obs)} observations" in msg.children
+    assert msg[0].color == "green" and f"{len(_obs)} observations" in msg[0].children
 
 @patch("module.uploadpest.parse_zip", return_value=NO_PST_RESULT)
 def test_uploadpest_callback_no_pst(mock_pz):
