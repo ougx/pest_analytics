@@ -721,3 +721,11 @@ def test_plot_selected_iterations(module):
     # an iteration keeps its color whatever else is selected
     color = lambda t: t.line.color if module == "tsplot" else t.marker.color
     assert color(last["Iter 6"]) == color(every["Iter 6"]) == color(two["Iter 6"])
+
+
+@patch("module.tsplot.parse_zip", return_value=GOOD_RESULT)
+def test_tsplot_hovermode_option(mock_pz):
+    from module.tsplot import plot
+    args = (1, {"pestpath": "dummy"}, "grpSite", _FIRST_SITE, "Greyout", "Lines", "Jet", False, ["6"])
+    assert plot(*args).layout.hovermode == "closest"              # default
+    assert plot(*args, "x unified").layout.hovermode == "x unified"

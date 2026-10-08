@@ -68,6 +68,10 @@ layout = html.Div([
         dmc.Select(id=name+"plottype", label="Plot Type:", data=["Lines+Markers", "Lines", "Markers", ], value="Lines+Markers", style={"width": "150px"}),
         dmc.Select(id=name+"palette", label="Iteration Colors:", data=list(palettes.keys()), value="Jet", style={"width": "150px"}),
         dmc.Switch(id=name+"invcmap", label="Inverse colormap", checked=False, style={"width": "150px"}),
+        dmc.Select(id=name+"hovermode", label="Hover:", data=[
+            {"value": "closest", "label": "Closest point"},
+            {"value": "x unified", "label": "Unified by date (all series)"},
+        ], value="closest", style={"width": "220px"}),
         dmc.Button("Plot Time Series", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
     graph(name+"plot", message_figure("Load data, then click 'Plot Time Series'."), fullname + "", style={"margin-bottom":"90px"}),
@@ -122,8 +126,9 @@ def upload_iterations(data):
     State( name+"palette", "value"),
     State( name+"invcmap", "checked"),
     State( name+"iters", "value"),
+    State( name+"hovermode", "value"),
 )
-def plot(clicks, data, grp, site, zeroweight, plottype, palette, invcmap, iters=None):
+def plot(clicks, data, grp, site, zeroweight, plottype, palette, invcmap, iters=None, hovermode="closest"):
     if clicks is None or clicks == 0:
         return message_figure("Load data, then click 'Plot Time Series'.")
     if data is None or data == {}:
@@ -205,6 +210,6 @@ def plot(clicks, data, grp, site, zeroweight, plottype, palette, invcmap, iters=
 
     fig.update_layout(
         height=700,
-        hovermode="x unified",
+        hovermode=hovermode,
     )
     return fig
