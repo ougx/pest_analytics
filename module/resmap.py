@@ -8,7 +8,7 @@ from plotting import message_figure
 from layout import update_groups, update_weights, about, graph
 from geo import read_layers, morans_i, LAYER_CATEGORIES, guess_category, category_layers
 
-name = __name__.lstrip("module.") + "-"
+name = __name__.removeprefix("module.") + "-"
 fullname = "Residual Map"
 
 md = dcc.Markdown('''

@@ -9,7 +9,7 @@ from plotting import colorscales, message_figure
 from pst import get_obssim
 from layout import update_weights, update_jco_iter, about, graph
 
-name = __name__.lstrip("module.") + "-"
+name = __name__.removeprefix("module.") + "-"
 fullname = "Observation Similarity"
 
 md = dcc.Markdown('''

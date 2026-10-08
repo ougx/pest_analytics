@@ -6,7 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from utils import parse_zip
 
-name = __name__.lstrip("module.") + "-"
+name = __name__.removeprefix("module.") + "-"
 fullname = "Observation Leverage"
 
 md = dcc.Markdown(f"#### {fullname}" +'''

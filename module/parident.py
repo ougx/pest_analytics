@@ -8,7 +8,7 @@ from utils import parse_zip, isiterable
 from plotting import message_figure
 from layout import update_weights, update_jco_iter, about, graph
 
-name = __name__.lstrip("module.") + "-"
+name = __name__.removeprefix("module.") + "-"
 fullname = "Parameter Identifiability"
 
 md = dcc.Markdown('''

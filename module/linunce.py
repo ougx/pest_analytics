@@ -7,7 +7,7 @@ from utils import parse_zip
 import plotly.graph_objects as go
 from pst import get_weighted_jco
 
-name = __name__.lstrip("module.") + "-"
+name = __name__.removeprefix("module.") + "-"
 fullname = "Linear Uncertainty Analysis"
 
 md = dcc.Markdown('''

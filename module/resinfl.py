@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 from pst import get_weighted_jco, get_jco_rei
 from layout import update_groups, update_weights, update_jco_iter, about, graph
 
-name = __name__.lstrip("module.") + "-"
+name = __name__.removeprefix("module.") + "-"
 fullname = "Residual Analysis"
 
 md = dcc.Markdown('''

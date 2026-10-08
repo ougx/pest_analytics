@@ -9,7 +9,7 @@ import numpy as np
 from plotly.subplots import make_subplots
 from layout import update_weights, update_obs, update_groups, about, graph
 
-name = __name__.lstrip("module.") + "-"
+name = __name__.removeprefix("module.") + "-"
 fullname = "Observation Sensitivity"
 
 md = dcc.Markdown('''

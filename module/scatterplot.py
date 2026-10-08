@@ -10,7 +10,7 @@ from layout import update_weights, update_groups, update_obs, update_rei_iter, a
 from plotly.subplots import make_subplots
 import numpy as np
 
-name = __name__.lstrip("module.") + "-"
+name = __name__.removeprefix("module.") + "-"
 fullname = "Scatter Plot"
 
 md = dcc.Markdown('''

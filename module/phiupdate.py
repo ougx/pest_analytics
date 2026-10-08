@@ -12,7 +12,7 @@ from layout import update_groups, update_weights, about, graph
 
 # dash.register_page(__name__, path='/')
 
-name = __name__.lstrip("module.") + "-"
+name = __name__.removeprefix("module.") + "-"
 fullname = "Phi Evolution"
 
 

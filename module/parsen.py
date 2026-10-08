@@ -10,7 +10,7 @@ from plotly.subplots import make_subplots
 from pst import get_jco_rei
 from layout import update_weights, update_groups, about, graph
 
-name = __name__.lstrip("module.") + "-"
+name = __name__.removeprefix("module.") + "-"
 fullname = "Parameter Sensitivity"
 
 md = dcc.Markdown('''

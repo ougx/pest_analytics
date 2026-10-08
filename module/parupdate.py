@@ -12,7 +12,7 @@ from layout import about, graph
 from plotting import palettes, message_figure
 
 
-name = __name__.lstrip("module.") + "-"
+name = __name__.removeprefix("module.") + "-"
 fullname = "Parameter Evolution"
 
 

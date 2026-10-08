@@ -5,7 +5,7 @@ import os
 from utils import parse_zip, save_upload, read_sites, check_pest_files
 from geo import read_layers, guess_category, LAYER_CATEGORIES
 
-name = __name__.lstrip("module.") + "-"
+name = __name__.removeprefix("module.") + "-"
 fullname = "Upload Data"
 
 
