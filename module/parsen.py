@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 from plotly.subplots import make_subplots
 from pst import get_jco_rei
-from layout import update_groups, about, graph
+from layout import update_weights, update_groups, about, graph
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Parameter Sensitivity"
@@ -59,6 +59,7 @@ layout = html.Div([
         dmc.Select(id=name+"grp"   , label="Grouped by:" , data=["obsgrp"], value="obsgrp", style={"width": "150px"}),
         dmc.Select(id=name+"nobs", label="# of Obs/Grp:", data=["5", "10", "20", "30", "40", "50"], value="50", style={"width": "150px"}),
         dmc.Select(id=name+"palette", label="Iteration Colors:", data=list(palettes.keys()), value="Jet", style={"width": "150px"}),
+        dmc.Select(id=name+"weight", label="Weighted by:", data=["weight"], value="weight", style={"width": "150px"}),
         dmc.Button("Plot Sensitivity", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
     dmc.MultiSelect(
@@ -93,6 +94,15 @@ def upload_pest(data):
     return [dats] + update_groups(data, "obsgrp")
 
 @callback(
+    Output(name+"weight", "data"),
+    Output(name+"weight", "value"),
+    Input( "pest-data", "data"),
+)
+def upload_weight_columns(data):
+    return update_weights(data, "weight")
+
+
+@callback(
     Output(name+"plot", "figure"),
     Input( name+"update-plot", "n_clicks"),
     State( "pest-data", "data"),
@@ -102,8 +112,9 @@ def upload_pest(data):
     State(name+"nobs", "value"),
     State(name+"palette", "value"),
     State(name+"parselect", "value"),
+    State( name+"weight", "value"),
 )
-def plot(clicks, data, stype, otype, grp, nobs, palette, parselect):
+def plot(clicks, data, stype, otype, grp, nobs, palette, parselect, weight="weight"):
     if clicks is None or clicks == 0:
         return message_figure("Load data, then click 'Plot Sensitivity'.")
     if data is None or data == {}:
@@ -127,11 +138,11 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, parselect):
     for i, df0 in jcos.items():
         df = pd.merge(df0, obs, left_index=True, right_on="obsname", suffixes=(None, "_1"))
         df.set_index("obsname", inplace=True)
-        sdf[f"Jacobian {i}"] = (df["weight"].values[:, None] * df[parselect]).sum(axis=1)
+        sdf[f"Jacobian {i}"] = (df[weight].values[:, None] * df[parselect]).sum(axis=1)
         if stype == "L1 Norm":
-            ddf[f"Jacobian {i}"] =  (df["weight"].values[:, None] * df[parselect] .abs()).sum(axis=1)
+            ddf[f"Jacobian {i}"] =  (df[weight].values[:, None] * df[parselect] .abs()).sum(axis=1)
         else:
-            ddf[f"Jacobian {i}"] = ((df["weight"].values[:, None] * df[parselect])**2).sum(axis=1)
+            ddf[f"Jacobian {i}"] = ((df[weight].values[:, None] * df[parselect])**2).sum(axis=1)
     sdf = pd.DataFrame(sdf, )
     ddf = pd.DataFrame(ddf, )
     if otype == "Obs Groups":

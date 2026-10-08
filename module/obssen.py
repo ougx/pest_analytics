@@ -7,7 +7,7 @@ from utils import parse_zip, isiterable
 import pandas as pd
 import numpy as np
 from plotly.subplots import make_subplots
-from layout import update_obs, update_groups, about, graph
+from layout import update_weights, update_obs, update_groups, about, graph
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Observation Sensitivity"
@@ -35,6 +35,7 @@ layout = html.Div([
         dmc.Select(id=name+"grp", label="Group by:", data=["obsgrp"], value="obsgrp", style={"width": "150px"}),
         dmc.Select(id=name+"nobs", label="Number of Observations:", data=["5", "10", "20", "30", "40", "50"], value="50", style={"width": "150px"}),
         dmc.Select(id=name+"palette", label="Iteration Colors:", data=list(palettes.keys()), value="Jet", style={"width": "150px"}),
+        dmc.Select(id=name+"weight", label="Weighted by:", data=["weight"], value="weight", style={"width": "150px"}),
         dmc.Button("Plot Sensitivity", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
     dmc.MultiSelect(
@@ -67,6 +68,15 @@ def upload_pest(data, otype, grp):
 
 
 @callback(
+    Output(name+"weight", "data"),
+    Output(name+"weight", "value"),
+    Input( "pest-data", "data"),
+)
+def upload_weight_columns(data):
+    return update_weights(data, "weight")
+
+
+@callback(
     Output(name+"plot", "figure"),
     Input( name+"update-plot", "n_clicks"),
     State( "pest-data", "data"),
@@ -76,8 +86,9 @@ def upload_pest(data, otype, grp):
     State(name+"nobs", "value"),
     State(name+"palette", "value"),
     State(name+"obsselect", "value"),
+    State( name+"weight", "value"),
 )
-def plot(clicks, data, stype, otype, grp, nobs, palette, obsselect):
+def plot(clicks, data, stype, otype, grp, nobs, palette, obsselect, weight="weight"):
     if clicks is None or clicks == 0:
         return message_figure("Load data, then click 'Plot Sensitivity'.")
     if data is None or data == {}:
@@ -104,11 +115,11 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, obsselect):
     obsselect = oo.obsname.tolist()
     for i, jco0 in jcos.items():
         df = jco0.loc[oo.obsname]
-        sdf[f"Jacobian {i}"] = (oo["weight"].values[:, None] * df).sum(axis=0)
+        sdf[f"Jacobian {i}"] = (oo[weight].values[:, None] * df).sum(axis=0)
         if stype == "L1 Norm":
-            ddf[f"Jacobian {i}"] =  (oo["weight"].values[:, None] * df .abs()).sum(axis=0)
+            ddf[f"Jacobian {i}"] =  (oo[weight].values[:, None] * df .abs()).sum(axis=0)
         else:
-            ddf[f"Jacobian {i}"] = ((oo["weight"].values[:, None] * df)**2).sum(axis=0)
+            ddf[f"Jacobian {i}"] = ((oo[weight].values[:, None] * df)**2).sum(axis=0)
     sdf = pd.DataFrame(sdf, )
     ddf = pd.DataFrame(ddf, )
 

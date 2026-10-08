@@ -20,11 +20,11 @@ def get_weighted_jco(obs, jco0, filter_insensitivetive=True, remove_regul=True, 
         WJ = WJ.loc[~mask]
     return WJ.copy()
 
-def get_cov(obs, jco0, filter_insensitivetive=True):
+def get_cov(obs, jco0, filter_insensitivetive=True, weight_col="weight"):
     """
     Compute parameter covariance matrix: cov = (J^T J)^-1
     """
-    WJ = get_weighted_jco(obs, jco0, filter_insensitivetive)
+    WJ = get_weighted_jco(obs, jco0, filter_insensitivetive, weight_col=weight_col)
     J2 = np.matmul(WJ.T, WJ)
     try:
         cov = np.linalg.inv(J2)
@@ -33,40 +33,40 @@ def get_cov(obs, jco0, filter_insensitivetive=True):
     return pd.DataFrame(cov, index=WJ.columns, columns=WJ.columns)
 
 
-def get_cor(obs, jco0, filter_insensitivetive=True):
+def get_cor(obs, jco0, filter_insensitivetive=True, weight_col="weight"):
     """
     Compute parameter correlation matrix: C = cov_{ij} / sqrt(cov_{ii} * cov_{jj})
     """
-    cov = get_cov(obs, jco0, filter_insensitivetive)
+    cov = get_cov(obs, jco0, filter_insensitivetive, weight_col)
     std = np.sqrt(np.diag(cov))
     cor = cov / np.outer(std, std)
     return pd.DataFrame(cor, index=cov.index, columns=cov.columns)
 
 
-def get_obssim(obs, jco0, filter_insensitivetive=True):
+def get_obssim(obs, jco0, filter_insensitivetive=True, weight_col="weight"):
     """
     Compute observation similarity matrix: S = J J^T
     """
-    WJ = get_weighted_jco(obs, jco0, filter_insensitivetive)
+    WJ = get_weighted_jco(obs, jco0, filter_insensitivetive, weight_col=weight_col)
     return WJ @ WJ.T
 
 
 
-def get_obscor(obs, jco0, filter_insensitivetive=True):
+def get_obscor(obs, jco0, filter_insensitivetive=True, weight_col="weight"):
     """
     Compute observation correlation (normalized observation similarity)
     """
-    So = get_obssim(obs, jco0, filter_insensitivetive)
+    So = get_obssim(obs, jco0, filter_insensitivetive, weight_col)
     d = np.sqrt(np.diag(So))
     return So / np.outer(d, d)
 
 
-def get_obsinflu(obs, jco0, filter_insensitivetive=True):
+def get_obsinflu(obs, jco0, filter_insensitivetive=True, weight_col="weight"):
     """
     Compute observation leverage using the hat matrix: H = J (J^T J)^-1 J^T
     """
-    WJ = get_weighted_jco(obs, jco0, filter_insensitivetive)
-    cov = get_cov(obs, jco0, filter_insensitivetive)
+    WJ = get_weighted_jco(obs, jco0, filter_insensitivetive, weight_col=weight_col)
+    cov = get_cov(obs, jco0, filter_insensitivetive, weight_col)
     H =  WJ @ cov @ WJ.T
     leverage = np.diag(H)
     return pd.Series(leverage, index=WJ.index).sort_values(ascending=False)

@@ -113,12 +113,12 @@ colorscales = ["RdBu", "BrBG", "RdYlBu", "Jet", "Viridis", "Plotly3"]
 stat_names = "RMSE R2 MeanAbsResid MeanResid MinResid MaxResid".split()
 
 
-def residual_stats(ts):
+def residual_stats(ts, weight="weight"):
     """
     Fit statistics (in stat_names order) of the targets in ts with weight > 0;
     zero-weight targets are excluded whether or not they are plotted.
     """
-    ts = ts[ts["weight"] > 0]
+    ts = ts[ts[weight] > 0]
     r = ts["residual"]
     if len(ts) == 0:
         return [np.nan] * len(stat_names)

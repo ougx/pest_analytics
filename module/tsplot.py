@@ -6,7 +6,7 @@ from plotting import palettes, residual_stats, stat_names, message_figure, itera
 import pandas as pd
 from utils import parse_zip, isiterable
 from pst import get_obssim, get_obscor
-from layout import update_groups, update_obs, update_rei_iter, about, graph
+from layout import update_weights, update_groups, update_obs, update_rei_iter, about, graph
 from plotly.subplots import make_subplots
 import numpy as np
 
@@ -72,6 +72,7 @@ layout = html.Div([
             {"value": "closest", "label": "Closest point"},
             {"value": "x unified", "label": "Unified by date (all series)"},
         ], value="closest", style={"width": "220px"}),
+        dmc.Select(id=name+"weight", label="Weighted by:", data=["weight"], value="weight", style={"width": "150px"}),
         dmc.Button("Plot Time Series", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
     graph(name+"plot", message_figure("Load data, then click 'Plot Time Series'."), fullname + "", style={"margin-bottom":"90px"}),
@@ -116,6 +117,15 @@ def upload_iterations(data):
 
 
 @callback(
+    Output(name+"weight", "data"),
+    Output(name+"weight", "value"),
+    Input( "pest-data", "data"),
+)
+def upload_weight_columns(data):
+    return update_weights(data, "weight")
+
+
+@callback(
     Output(name+"plot", "figure"),
     Input( name+"update-plot", "n_clicks"),
     State( "pest-data", "data"),
@@ -127,8 +137,9 @@ def upload_iterations(data):
     State( name+"invcmap", "checked"),
     State( name+"iters", "value"),
     State( name+"hovermode", "value"),
+    State( name+"weight", "value"),
 )
-def plot(clicks, data, grp, site, zeroweight, plottype, palette, invcmap, iters=None, hovermode="closest"):
+def plot(clicks, data, grp, site, zeroweight, plottype, palette, invcmap, iters=None, hovermode="closest", weight="weight"):
     if clicks is None or clicks == 0:
         return message_figure("Load data, then click 'Plot Time Series'.")
     if data is None or data == {}:
@@ -154,7 +165,7 @@ def plot(clicks, data, grp, site, zeroweight, plottype, palette, invcmap, iters=
 
     ts = obs[obs[grp]==site]
     if zeroweight=="Hide":
-        ts = ts[ts["weight"]>0]
+        ts = ts[ts[weight]>0]
     fig.add_trace(go.Scatter(
         x=pd.to_datetime(ts["time"]),
         y=ts["obsval"],
@@ -163,7 +174,7 @@ def plot(clicks, data, grp, site, zeroweight, plottype, palette, invcmap, iters=
         name="Observed",
         hovertemplate='%{text}: %{y}',
         line=dict(color="black"),
-        marker=dict(color=["black" if w>0 else "grey" for w in ts["weight"]] if zeroweight=="Greyout" else "black")
+        marker=dict(color=["black" if w>0 else "grey" for w in ts[weight]] if zeroweight=="Greyout" else "black")
     ))
 
     sims = {}
@@ -172,7 +183,7 @@ def plot(clicks, data, grp, site, zeroweight, plottype, palette, invcmap, iters=
         #print(df)
         ts = df[df[grp]==site]
         if zeroweight=="Hide":
-            ts = ts[ts["weight"]>0]
+            ts = ts[ts[weight]>0]
         fig.add_trace(go.Scatter(
             x=pd.to_datetime(ts["time"]),
             y=ts["modelled"],
@@ -181,9 +192,9 @@ def plot(clicks, data, grp, site, zeroweight, plottype, palette, invcmap, iters=
             name="Iter " + str(i),
             hovertemplate='%{text}: %{y}',
             line=dict(color=color),
-            marker=dict(color=[color if w>0 else "grey" for w in ts["weight"]] if zeroweight=="Greyout" else color)
+            marker=dict(color=[color if w>0 else "grey" for w in ts[weight]] if zeroweight=="Greyout" else color)
         ))
-        sims["Iter " + str(i)] = residual_stats(ts)
+        sims["Iter " + str(i)] = residual_stats(ts, weight)
 
     sims = pd.DataFrame(sims)
     sims.index = stat_names

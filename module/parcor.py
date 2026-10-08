@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from utils import parse_zip, isiterable
 from plotting import colorscales, message_figure
-from layout import update_jco_iter, about, graph
+from layout import update_weights, update_jco_iter, about, graph
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Parameter Correlation"
@@ -47,6 +47,7 @@ layout = html.Div([
         dmc.Select(id=name+"highr", label="Highlight Limit:", data=["0.90","0.95","0.98", "0.99"], value="0.98", style={"width": "150px"}),
         dmc.Select(id=name+"palette", label="Color Scale:", data=colorscales, value=colorscales[0], style={"width": "150px"}),
         dmc.Switch(id=name+"invcmap", label="Inverse colormap", checked=True, style={"width": "150px"}),
+        dmc.Select(id=name+"weight", label="Weighted by:", data=["weight"], value="weight", style={"width": "150px"}),
         dmc.Button("Plot Correlation", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
     graph(name+"plot", message_figure("Load data, then click 'Plot Correlation'."), fullname + "", style={"margin-bottom":"90px"}),
@@ -65,6 +66,15 @@ def upload_pest(data):
 
 
 @callback(
+    Output(name+"weight", "data"),
+    Output(name+"weight", "value"),
+    Input( "pest-data", "data"),
+)
+def upload_weight_columns(data):
+    return update_weights(data, "weight")
+
+
+@callback(
     Output(name+"plot", "figure"),
     Input( name+"update-plot", "n_clicks"),
     State( "pest-data", "data"),
@@ -73,8 +83,9 @@ def upload_pest(data):
     State( name+"highr", "value"),
     State( name+"palette", "value"),
     State( name+"invcmap", "checked"),
+    State( name+"weight", "value"),
 )
-def plot(clicks, data, npar, iiter, highr, palette, invcmap):
+def plot(clicks, data, npar, iiter, highr, palette, invcmap, weight="weight"):
     if clicks is None or clicks == 0:
         return message_figure("Load data, then click 'Plot Correlation'.")
     if data is None or data == {}:
@@ -86,12 +97,12 @@ def plot(clicks, data, npar, iiter, highr, palette, invcmap):
         return message_figure("No .jco file found in zip file.")
 
     csplimit = 1e-10
-    nobs_useful = (obs.weight > 0).sum()
+    nobs_useful = (obs[weight] > 0).sum()
 
     jco0 = jcos[int(iiter)]
     mask = jco0.index.isin(obs.obsname)
     jco = jco0.loc[mask, ]
-    WJ = jco * obs.set_index("obsname").loc[jco.index, "weight"].values[:, None]
+    WJ = jco * obs.set_index("obsname").loc[jco.index, weight].values[:, None]
     csp = (WJ**2).sum() ** 0.5 / nobs_useful
     mask = WJ.columns.isin(csp[csp>csplimit].index)
     JJ = WJ.loc[:,mask]

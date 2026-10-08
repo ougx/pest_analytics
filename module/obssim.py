@@ -7,7 +7,7 @@ import pandas as pd
 from utils import parse_zip
 from plotting import colorscales, message_figure
 from pst import get_obssim
-from layout import update_jco_iter, about, graph
+from layout import update_weights, update_jco_iter, about, graph
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Observation Similarity"
@@ -42,6 +42,7 @@ layout = html.Div([
     dmc.Group([
         dmc.Select(id=name+"palette", label="Color Scale:", data=colorscales, value=colorscales[0], style={"width": "150px"}),
         dmc.Switch(id=name+"invcmap", label="Inverse colormap", checked=True, style={"width": "150px"}),
+        dmc.Select(id=name+"weight", label="Weighted by:", data=["weight"], value="weight", style={"width": "150px"}),
         dmc.Button("Plot Similarity", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
     graph(name+"plot", message_figure("Load data, then click 'Plot Similarity'."), fullname + "", style={"margin-bottom":"90px"}),
@@ -59,6 +60,15 @@ def upload_pest(data):
 
 
 @callback(
+    Output(name+"weight", "data"),
+    Output(name+"weight", "value"),
+    Input( "pest-data", "data"),
+)
+def upload_weight_columns(data):
+    return update_weights(data, "weight")
+
+
+@callback(
     Output(name+"plot", "figure"),
     Input( name+"update-plot", "n_clicks"),
     State( "pest-data", "data"),
@@ -68,8 +78,9 @@ def upload_pest(data):
     State( name+"palette", "value"),
     State( name+"invcmap", "checked"),
     State( name+"norm", "checked"),
+    State( name+"weight", "value"),
 )
-def plot(clicks, data, nobs, iiter, highr, palette, invcmap, normalized):
+def plot(clicks, data, nobs, iiter, highr, palette, invcmap, normalized, weight="weight"):
     if clicks is None or clicks == 0:
         return message_figure("Load data, then click 'Plot Similarity'.")
     if data is None or data == {}:
@@ -82,7 +93,7 @@ def plot(clicks, data, nobs, iiter, highr, palette, invcmap, normalized):
 
     jco0 = jcos[int(iiter)]
     mask = jco0.index.isin(obs.obsname)
-    So = get_obssim(obs, jco0)
+    So = get_obssim(obs, jco0, weight_col=weight)
     d = np.sqrt(np.diag(So))
     Sc = So / np.outer(d, d)
     ScOff = (Sc - np.identity(len(Sc))).abs()

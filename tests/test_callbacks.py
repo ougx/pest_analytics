@@ -748,3 +748,46 @@ def test_parident_cutoff_uses_eigenvalue_ratio(mock_pz):
     assert kept < int((s / s[0] >= 1e-5).sum())            # a singular-value cutoff would keep more
     f = np.asarray(fig.data[0].x, dtype=float)
     assert ((f > -1e-9) & (f < 1 + 1e-9)).all()
+
+
+# ---------------------------------------------------------------------------
+# every page uses the selected weight column (the example has weight and weight_orig)
+# ---------------------------------------------------------------------------
+
+_WEIGHT_PAGES = {
+    "parsen":      lambda plot, w: plot(1, {"pestpath": "x"}, "L2 Norm", "Obs Groups", "obsgrp", "10", "Jet", [_FIRST_PAR], w),
+    "obssen":      lambda plot, w: plot(1, {"pestpath": "x"}, "L2 Norm", "Obs Groups", "obsgrp", "10", "Jet", ["head"], w),
+    "parcor":      lambda plot, w: plot(1, {"pestpath": "x"}, "20", "6", "0.98", "RdBu", True, w),
+    "obssim":      lambda plot, w: plot(1, {"pestpath": "x"}, "20", "6", "0.98", "RdBu", True, True, w),
+    "parident":    lambda plot, w: plot(1, {"pestpath": "x"}, "6", "1e-5", "Vertical", w),
+    "scatterplot": lambda plot, w: plot(1, {"pestpath": "x"}, "grpType", "head", False, "Hide", "Jet", False, "closest", ["6"], w),
+    "tsplot":      lambda plot, w: plot(1, {"pestpath": "x"}, "grpSite", _MIXED_SITE, "Hide", "Lines", "Jet", False, ["6"], "closest", w),
+}
+
+def _zero_some_original_weights():
+    """the example run with weight_orig = 0 for every other observation, so 'zero weight' differs by column"""
+    def zero(df):
+        df = df.copy()
+        df.loc[df.index[::2], "weight_orig"] = 0.0
+        return df
+    obs = _obs.copy()
+    obs["weight_orig"] = obs.obsname.map(zero(_obs).set_index("obsname").weight_orig)
+    reis = {k: v.assign(weight_orig=v.obsname.map(obs.set_index("obsname").weight_orig)) for k, v in _reis.items()}
+    return (_pst, _par, obs, _pars, reis, _jcos)
+
+@pytest.mark.parametrize("page", list(_WEIGHT_PAGES))
+def test_page_uses_selected_weight_column(page):
+    import importlib
+    module = importlib.import_module(f"module.{page}")
+    # scatter / time series only use the weight to tell zero-weight targets apart
+    result = _zero_some_original_weights() if page in ("scatterplot", "tsplot") else GOOD_RESULT
+    with patch(f"module.{page}.parse_zip", return_value=result):
+        default = _WEIGHT_PAGES[page](module.plot, "weight")
+        original = _WEIGHT_PAGES[page](module.plot, "weight_orig")
+    assert len(default.data) > 0
+    assert default.to_json() != original.to_json()      # weight_orig changes the result
+
+def test_weight_selector_options():
+    from layout import update_weights
+    with patch("layout.parse_zip", return_value=GOOD_RESULT):
+        assert update_weights({"pestpath": "x"}, "weight") == [["weight", "weight_orig"], "weight"]

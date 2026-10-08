@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from utils import parse_zip, isiterable
 from plotting import message_figure
-from layout import update_jco_iter, about, graph
+from layout import update_weights, update_jco_iter, about, graph
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Parameter Identifiability"
@@ -49,6 +49,7 @@ layout = html.Div([
         dmc.Select(id=name+"iter", label="Jacobian Iteration:", description=".jco.N, at iteration N-1 parameters", data=["1"], value="1", style={"width": "150px"}),
         dmc.Select(id=name+"svdtrunc", label="Eigenvalue Ratio (EIGTHRESH):", data=["1e-4", "1e-5", "5e-6", "1e-6", "5e-7", "1e-7", "5e-8", "1e-8", "1e-9"], value="5e-7", style={"width": "150px"}),
         dmc.Select(id=name+"layout", label="Layout:", data=["Horizontal", "Vertical"], value="Vertical", style={"width": "150px"}),
+        dmc.Select(id=name+"weight", label="Weighted by:", data=["weight"], value="weight", style={"width": "150px"}),
         dmc.Button("Plot Identifiability", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
     graph(name+"plot", message_figure("Load data, then click 'Plot Identifiability'."), fullname + "", style={"margin-bottom":"90px"}),
@@ -67,14 +68,24 @@ def upload_pest(data):
 
 
 @callback(
+    Output(name+"weight", "data"),
+    Output(name+"weight", "value"),
+    Input( "pest-data", "data"),
+)
+def upload_weight_columns(data):
+    return update_weights(data, "weight")
+
+
+@callback(
     Output(name+"plot", "figure"),
     Input( name+"update-plot", "n_clicks"),
     State( "pest-data", "data"),
     State( name+"iter", "value"),
     State( name+"svdtrunc", "value"),
     State(name+"layout", "value"),
+    State( name+"weight", "value"),
 )
-def plot(clicks, data, iiter, svdtrunc, layout):
+def plot(clicks, data, iiter, svdtrunc, layout, weight="weight"):
     if clicks is None or clicks == 0:
         return message_figure("Load data, then click 'Plot Identifiability'.")
     if data is None or data == {}:
@@ -86,12 +97,12 @@ def plot(clicks, data, iiter, svdtrunc, layout):
         return message_figure("No .jco file found in zip file.")
 
     csplimit = 1e-10
-    nobs_useful = (obs.weight > 0).sum()
+    nobs_useful = (obs[weight] > 0).sum()
 
     jco0 = jcos[int(iiter)]
     mask = jco0.index.isin(obs.obsname)
     jco = jco0.loc[mask, ]
-    WJ = jco * obs.set_index("obsname").loc[jco.index, "weight"].values[:, None]
+    WJ = jco * obs.set_index("obsname").loc[jco.index, weight].values[:, None]
     csp = (WJ**2).sum() ** 0.5 / nobs_useful
     mask = WJ.columns.isin(csp[csp>csplimit].index)
     JJ = WJ.loc[:,mask]
