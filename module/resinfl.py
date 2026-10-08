@@ -6,7 +6,7 @@ import plotly.express as px
 from utils import parse_zip
 import plotly.graph_objects as go
 from pst import get_weighted_jco, get_jco_rei
-from layout import update_groups, update_weights, about
+from layout import update_groups, update_weights, update_jco_iter, about
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Residual Analysis"
@@ -101,18 +101,11 @@ layout = html.Div([
 
 @callback(
     Output(name+"iter", "data"),
+    Output(name+"iter", "value"),
     Input( "pest-data", "data"),
 )
 def upload_pest(data):
-    if data is None or data == {}:
-        return no_update
-    contents = data.get("contents")
-    filename = data.get("filename")
-    pst, par, obs, pars, reis, jcos = parse_zip(data, False, False, True)
-    if pst and jcos:
-        return [str(i) for i in jcos.keys()]
-    else:
-        return no_update
+    return update_jco_iter(data, need_rei=True)
 
 @callback(
     Output(name+"grp"   , "data"),

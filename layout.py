@@ -59,6 +59,20 @@ def update_obs(data, otype, grp, filter_zeroweight=True):
     return no_update
 
 
+def update_jco_iter(data, need_rei=False):
+    """
+    Jacobian iteration selector: [options, value] with the last iteration selected.
+    need_rei: only offer iterations with the matching residuals (.rei.(N-1) or .rei.N).
+    """
+    if data is not None:
+        pst, par, obs, pars, reis, jcos = parse_zip(data, False, need_rei, True)
+        if pst and jcos:
+            iters = [str(i) for i in sorted(jcos) if not need_rei or (i - 1) in reis or i in reis]
+            if iters:
+                return [iters, iters[-1]]
+    return [no_update, no_update]
+
+
 def update_niter(data, loadpar=False, loadrei=False, loadjco=False, ):
     """update iteration selector"""
     if data is not None:

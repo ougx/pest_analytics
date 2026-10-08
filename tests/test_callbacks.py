@@ -387,7 +387,7 @@ def test_obsconf_sankey_nothing_selected():
     fig = plot_sankey([], "obsname", "5", True, {"pestpath": "dummy"}, "1", "weight", "Parameters")
     assert isinstance(fig, go.Figure)
 
-@patch("module.obsconf.parse_zip", return_value=GOOD_RESULT)
+@patch("layout.parse_zip", return_value=GOOD_RESULT)
 def test_obsconf_iterations_pair_with_previous_rei(mock_pz):
     from module.obsconf import upload_pest
     iters, value = upload_pest({"pestpath": "dummy"})

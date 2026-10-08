@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from utils import parse_zip
 from pst import get_obssim
-from layout import update_niter, about
+from layout import update_jco_iter, about
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Observation Similarity"
@@ -49,10 +49,11 @@ layout = html.Div([
 
 @callback(
     Output(name+"iter", "data"),
+    Output(name+"iter", "value"),
     Input( "pest-data", "data"),
 )
 def upload_pest(data):
-    return update_niter(data, True)
+    return update_jco_iter(data)
 
 
 

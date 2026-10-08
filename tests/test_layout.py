@@ -9,7 +9,7 @@ import pytest
 from dash import no_update
 
 from utils import read_pest_zip
-from layout import update_groups, update_weights, update_obs, update_niter
+from layout import update_groups, update_weights, update_obs, update_niter, update_jco_iter
 
 _ZIP = pathlib.Path(__file__).parent.parent / "testdata" / "example_pst.zip"
 
@@ -137,3 +137,26 @@ def test_update_niter_none_data_returns_none():
     # update_niter returns None (not no_update) when data is absent
     result = update_niter(None, loadpar=True)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# update_jco_iter
+# ---------------------------------------------------------------------------
+
+_FULL_JCO = read_pest_zip(str(_ZIP), loadpar=False, loadrei=True, loadjco=True)
+
+@patch("layout.parse_zip", return_value=_FULL_JCO)
+def test_update_jco_iter_selects_last(mock_pz):
+    iters, value = update_jco_iter({"pestpath": "dummy"})
+    assert iters == ["1", "2", "3", "4", "5", "6"]
+    assert value == "6"
+
+def test_update_jco_iter_needs_matching_residuals():
+    pst, par, obs, pars, reis, jcos = _FULL_JCO
+    only_late_rei = (pst, par, obs, pars, {5: reis[5], 6: reis[6]}, jcos)
+    with patch("layout.parse_zip", return_value=only_late_rei):
+        assert update_jco_iter({"pestpath": "dummy"}, need_rei=True) == [["5", "6"], "6"]
+        assert update_jco_iter({"pestpath": "dummy"})[0] == ["1", "2", "3", "4", "5", "6"]
+
+def test_update_jco_iter_no_data():
+    assert update_jco_iter(None) == [no_update, no_update]

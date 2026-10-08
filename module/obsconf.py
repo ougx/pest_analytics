@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from utils import parse_zip
 from pst import get_obs_pull, get_par_tension, get_jco_rei
-from layout import update_groups, update_weights, about
+from layout import update_groups, update_weights, update_jco_iter, about
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Observation Conflict"
@@ -100,14 +100,7 @@ layout = html.Div([
     Input( "pest-data", "data"),
 )
 def upload_pest(data):
-    if data is None or data == {}:
-        return no_update, no_update
-    pst, par, obs, pars, reis, jcos = parse_zip(data, False, True, True)
-    if pst and jcos:
-        iters = [str(i) for i in sorted(jcos.keys()) if (i - 1) in reis or i in reis]
-        if iters:
-            return iters, iters[-1]
-    return no_update, no_update
+    return update_jco_iter(data, need_rei=True)
 
 
 @callback(
