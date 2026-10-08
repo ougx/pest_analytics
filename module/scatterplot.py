@@ -59,6 +59,10 @@ layout = html.Div([
     dmc.Group([
         dmc.Select(id=name+"palette", label="Iteration Colors:", data=list(palettes.keys()), value="Jet", style={"width": "150px"}),
         dmc.Switch(id=name+"invcmap", label="Inverse colormap", checked=False, style={"width": "150px"}),
+        dmc.Select(id=name+"hovermode", label="Hover:", data=[
+            {"value": "closest", "label": "Closest point"},
+            {"value": "x unified", "label": "Unified by x (all iterations)"},
+        ], value="closest", style={"width": "220px"}),
         dmc.Button("Plot Scatters", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
     graph(name+"plot", message_figure("Load data, then click 'Plot Scatters'."), fullname + "", style={"margin-bottom":"90px"}),
@@ -100,8 +104,9 @@ def upload_pest(data):
     State( name+"zeroweight", "value"),
     State( name+"palette", "value"),
     State( name+"invcmap", "checked"),
+    State( name+"hovermode", "value"),
 )
-def plot(clicks, data, grp, site, as_residual, zeroweight, palette, invcmap):
+def plot(clicks, data, grp, site, as_residual, zeroweight, palette, invcmap, hovermode="closest"):
     if clicks is None or clicks == 0:
         return message_figure("Load data, then click 'Plot Scatters'.")
     if data is None or data == {}:
@@ -180,6 +185,6 @@ def plot(clicks, data, grp, site, as_residual, zeroweight, palette, invcmap):
         height=700,
         xaxis_title="Observed Values",
         yaxis_title="Residuals" if as_residual else "Simulated Values",
-        hovermode="x unified",
+        hovermode=hovermode,
     )
     return fig

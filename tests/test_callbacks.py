@@ -678,3 +678,11 @@ def test_every_graph_has_csv_download():
     outputs = list(dash._callback.GLOBAL_CALLBACK_MAP)
     for gid in graphs:
         assert any(o.startswith(gid + "-csv.data") for o in outputs), gid
+
+
+@patch("module.scatterplot.parse_zip", return_value=GOOD_RESULT)
+def test_scatterplot_hovermode_option(mock_pz):
+    from module.scatterplot import plot
+    args = (1, {"pestpath": "dummy"}, "grpSite", _FIRST_SITE, False, "Greyout", "Jet", False)
+    assert plot(*args).layout.hovermode == "closest"              # default
+    assert plot(*args, "x unified").layout.hovermode == "x unified"
