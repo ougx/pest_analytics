@@ -1,9 +1,9 @@
 import dash
-from dash import html, dcc, Input, Output, callback, clientside_callback, State, no_update
+from dash import html, dcc, Input, Output, callback, clientside_callback, State, no_update, ALL
 import dash_mantine_components as dmc
 import os
 from utils import parse_zip, save_upload, read_sites
-from geo import read_layers
+from geo import read_layers, guess_category, LAYER_CATEGORIES
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Upload Data"
@@ -169,7 +169,8 @@ def add_layers(contents, filenames, layers):
             continue
         for i, layer in enumerate(found):
             name = layer["name"] if ext == "zip" else os.path.splitext(filename)[0]
-            entry = {"key": key, "ext": ext, "index": i, "name": name, "kind": layer["kind"], "count": layer["count"]}
+            entry = {"key": key, "ext": ext, "index": i, "name": name, "kind": layer["kind"], "count": layer["count"],
+                     "category": guess_category(name, layer["kind"])}
             layers = [l for l in layers if (l["key"], l["index"]) != (key, i)] + [entry]
     msg = [message(e, "red") for e in errors] or None
     return layers, msg, None   # clear the drop zone so the same file can be dropped again
@@ -190,11 +191,33 @@ def clear_layers(n_clicks):
     Input("map-layers", "data"),
 )
 def show_layers(layers):
+    """one row per layer with its category, which sets its map style (geo.LAYER_CATEGORIES)"""
     if not layers:
         return dmc.Text("No map layers loaded.", size="sm", c="dimmed")
     kinds = {"fill": "polygon", "line": "line", "circle": "point"}
-    described = [f"{l['name']} ({l['count']} {kinds[l['kind']]}{'' if l['count'] == 1 else 's'})" for l in layers]
-    return dmc.Text("Layers: " + "; ".join(described), size="sm")
+    rows = []
+    for i, l in enumerate(layers):
+        described = f"{l['name']} ({l['count']} {kinds[l['kind']]}{'' if l['count'] == 1 else 's'})"
+        rows.append(dmc.Group([
+            dmc.Select(id={"type": "layer-category", "index": i}, data=list(LAYER_CATEGORIES),
+                       value=l.get("category") or guess_category(l["name"], l["kind"]), size="xs", w=150),
+            dmc.Text(described, size="sm"),
+        ], gap="sm"))
+    return dmc.Stack([dmc.Text("Layers (the category sets the map style):", size="sm", fw=500)] + rows, gap=4)
+
+
+@callback(
+    Output("map-layers", "data", allow_duplicate=True),
+    Input({"type": "layer-category", "index": ALL}, "value"),
+    State("map-layers", "data"),
+    prevent_initial_call=True,
+)
+def set_layer_categories(categories, layers):
+    if not layers or len(categories) != len(layers):
+        return no_update
+    if all(l.get("category") == c for l, c in zip(layers, categories)):
+        return no_update   # nothing changed (e.g. the list was just redrawn)
+    return [{**l, "category": c} for l, c in zip(layers, categories)]
 
 
 @callback(

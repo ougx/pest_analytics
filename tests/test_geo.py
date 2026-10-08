@@ -87,7 +87,9 @@ def test_add_layers_callback(uploads):
     # dropping the same file again does not duplicate its layers
     again, _, _ = add_layers(contents[:1], ["napa.zip"], layers)
     assert len(again) == 2
-    assert "domain (1 polygon)" in show_layers(again).children
+    rows = show_layers(again).children[1:]
+    assert [r.children[0].value for r in rows] == ["Model domain", "Stream"]   # guessed from the names
+    assert rows[0].children[1].children == "domain (1 polygon)"
     assert clear_layers(1) == ([], None)
 
 
@@ -130,3 +132,40 @@ def test_morans_i_too_few_sites():
     assert morans_i([38, 38.1], [-122, -122.1], [1, 2]) is None
     lat, lon = _grid(4)
     assert morans_i(lat, lon, [1.0] * lat.size) is None    # no variation
+
+
+# ---------------------------------------------------------------------------
+# layer categories and styles
+# ---------------------------------------------------------------------------
+
+def test_guess_category():
+    from geo import guess_category
+    assert guess_category("model_domain", "fill") == "Model domain"
+    assert guess_category("major_streams", "line") == "Stream"
+    assert guess_category("major_lakes", "fill") == "Lake"
+    assert guess_category("Napa_Subbasin", "fill") == "Boundary"
+    assert guess_category("obs_wells", "circle") == "Points"
+    assert guess_category("roads", "line") == "Other"
+    assert guess_category("survey", "circle") == "Points"
+
+
+def test_category_styles():
+    from geo import category_layers
+    gj = {"type": "FeatureCollection", "features": []}
+    domain = category_layers(gj, "fill", "Model domain")
+    assert [l["type"] for l in domain] == ["fill", "line"] and domain[0]["color"] == "#bdbdbd"
+    lake = category_layers(gj, "fill", "Lake")
+    assert lake[0]["color"] == "#a6cee3" and lake[1]["color"] == "#1f78b4"
+    (stream,) = category_layers(gj, "line", "Stream")
+    assert stream["type"] == "line" and stream["color"] == "#1f78b4"
+    (boundary,) = category_layers(gj, "fill", "Boundary")            # outline only, dashed
+    assert boundary["type"] == "line" and boundary["line"]["dash"] == [4, 2]
+
+
+def test_set_layer_categories():
+    from module.uploadpest import set_layer_categories
+    from dash import no_update
+    layers = [{"name": "a", "category": "Other"}, {"name": "b", "category": "Stream"}]
+    assert set_layer_categories(["Other", "Stream"], layers) is no_update       # unchanged: no update loop
+    updated = set_layer_categories(["Lake", "Stream"], layers)
+    assert [l["category"] for l in updated] == ["Lake", "Stream"]

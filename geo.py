@@ -5,12 +5,60 @@ for the residual map.
 import functools
 import json
 import os
+import re
 import zipfile
 import numpy as np
 from utils import upload_path
 
 SIMPLIFY_DEG = 0.00005   # simplification tolerance in degrees (about 5 m), keeps layers light in the browser
 LAYER_EXTENSIONS = (".shp", ".geojson", ".json")
+
+# Map layer categories, in drawing order (first at the bottom), each with a fixed style so maps look
+# the same in every project. fill: polygon fill color/opacity; line: outline or line color/width/dash;
+# circle: point color/radius. "words" guess the category from the layer name.
+LAYER_CATEGORIES = {
+    "Model domain": dict(fill=("#bdbdbd", 0.35), line=("#737373", 1.5, None), circle=("#737373", 3),
+                         words=["domain", "model", "active", "grid", "ibound"]),
+    "Zone":         dict(fill=None, line=("#e31a1c", 1, None), circle=("#e31a1c", 3),
+                         words=["zone", "zones", "geology", "geologic"]),
+    "Lake":         dict(fill=("#a6cee3", 0.7), line=("#1f78b4", 1, None), circle=("#1f78b4", 3),
+                         words=["lake", "lakes", "reservoir", "pond", "waterbody", "water_body"]),
+    "Boundary":     dict(fill=None, line=("#252525", 1.5, [4, 2]), circle=("#252525", 3),
+                         words=["boundary", "basin", "subbasin", "county", "watershed", "huc", "outline"]),
+    "Stream":       dict(fill=("#1f78b4", 0.5), line=("#1f78b4", 1.5, None), circle=("#1f78b4", 3),
+                         words=["stream", "streams", "river", "rivers", "creek", "creeks", "sfr", "channel", "flowline"]),
+    "Fault":        dict(fill=None, line=("#6a3d9a", 1.5, [2, 2]), circle=("#6a3d9a", 3),
+                         words=["fault", "faults"]),
+    "Points":       dict(fill=None, line=("#252525", 1, None), circle=("#252525", 3),
+                         words=["well", "wells", "point", "points", "site", "sites", "gage", "gauge"]),
+    "Other":        dict(fill=("#ff7f0e", 0.2), line=("#ff7f0e", 1.5, None), circle=("#ff7f0e", 3), words=[]),
+}
+
+
+def guess_category(name, kind):
+    """layer category from words in its name; point layers default to Points, others to Other"""
+    words = set(re.split(r"[^a-z]+", name.lower()))
+    for category, style in LAYER_CATEGORIES.items():
+        if words & set(style["words"]):
+            return category
+    return "Points" if kind == "circle" else "Other"
+
+
+def category_layers(geojson, kind, category):
+    """plotly map layers drawing one map layer in its category's style"""
+    style = LAYER_CATEGORIES.get(category, LAYER_CATEGORIES["Other"])
+    out = []
+    if kind == "circle":
+        color, radius = style["circle"]
+        return [dict(sourcetype="geojson", source=geojson, type="circle", color=color, circle=dict(radius=radius),
+                     below="traces")]
+    if kind == "fill" and style["fill"]:
+        color, opacity = style["fill"]
+        out.append(dict(sourcetype="geojson", source=geojson, type="fill", color=color, opacity=opacity, below="traces"))
+    color, width, dash = style["line"]
+    line = dict(width=width) if dash is None else dict(width=width, dash=dash)
+    out.append(dict(sourcetype="geojson", source=geojson, type="line", color=color, line=line, below="traces"))
+    return out
 
 
 def morans_i(lat, lon, values, k=8, permutations=999, seed=0):

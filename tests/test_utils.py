@@ -299,13 +299,18 @@ def test_parse_zip_real_loads_reis():
 # ---------------------------------------------------------------------------
 
 def _rewrite_zip(rename=None, extra=None, obs_csv=None):
-    """Copy the example zip with renamed members, extra files and/or a modified obs.csv."""
+    """
+    Copy the example zip with renamed members, extra files and/or a modified obs.csv.
+    Any site.csv in the example zip is left out, so tests choose their own sites.
+    """
     import zipfile
     buf = io.BytesIO()
     with zipfile.ZipFile(TESTDATA_ZIP) as src, zipfile.ZipFile(buf, "w") as dst:
         for name, data in (extra or {}).items():
             dst.writestr(name, data)
         for n in src.namelist():
+            if n.lower().endswith("site.csv"):
+                continue
             data = src.read(n)
             if n == "obs.csv" and obs_csv:
                 data = obs_csv(pd.read_csv(io.BytesIO(data))).to_csv(index=False).encode()
@@ -464,8 +469,10 @@ def test_read_sites(fresh_cache, tmp_path):
     assert list(sites.columns) == ["site", "lat", "lon", "type"]
     assert sites.lat.tolist() == [38.1, 38.2]
 
-def test_read_sites_absent(fresh_cache):
-    assert fresh_cache.read_sites({"pestpath": str(TESTDATA_ZIP)}) is None
+def test_read_sites_absent(fresh_cache, tmp_path):
+    path = tmp_path / "no_sites.zip"
+    path.write_bytes(_rewrite_zip().getvalue())
+    assert fresh_cache.read_sites({"pestpath": str(path)}) is None
     assert fresh_cache.read_sites(None) is None
 
 def test_read_sites_missing_columns(fresh_cache, tmp_path):

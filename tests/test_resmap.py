@@ -14,9 +14,10 @@ ZIP = pathlib.Path(__file__).parent.parent / "testdata" / "example_pst.zip"
 def mapped_data(tmp_path_factory):
     """the example zip plus a site.csv with made-up coordinates for every grpSite value"""
     import utils
+    from tests.test_utils import _rewrite_zip
     tmp = tmp_path_factory.mktemp("resmap")
     path = tmp / "run_with_sites.zip"
-    shutil.copy(ZIP, path)
+    path.write_bytes(_rewrite_zip().getvalue())     # the example run without any site.csv of its own
     obs = pd.read_csv(zipfile.ZipFile(ZIP).open("obs.csv"))
     sites = sorted(obs.grpSite.dropna().astype(str).unique())
     rng = np.random.default_rng(0)
@@ -73,22 +74,28 @@ def test_basemap_and_layers(mapped_data, tmp_path, monkeypatch):
     monkeypatch.setattr(utils, "UPLOAD_DIR", str(tmp_path / "uploads"))
     geo._read_layers_cached.cache_clear()
     key = utils.save_upload(_contents(_shapefile_zip(tmp_path, _napa_like_layers())), "zip")
-    layers = [dict(key=key, ext="zip", index=i, name=n, kind=k, count=1)
-              for i, (n, k) in enumerate([("domain", "fill"), ("stream", "line")])]
+    layers = [dict(key=key, ext="zip", index=i, name=n, kind=k, count=1, category=c)
+              for i, (n, k, c) in enumerate([("domain", "fill", "Model domain"), ("stream", "line", "Stream")])]
     data, _ = mapped_data
     fig, _ = _plot(data, basemap="Satellite (USGS)", opacity=40, layers=layers, layer_on=[True, False])
     raster, *shapes = fig.layout.map.layers
     assert "USGSImageryOnly" in raster.source[0] and raster.opacity == 0.4
     assert [s.type for s in shapes] == ["fill", "line"]            # only the switched-on polygon layer
+    assert shapes[0].color == "#bdbdbd"                              # styled as a model domain
+    # layers are drawn in category order (domain at the bottom), whatever their upload order
+    fig, _ = _plot(data, basemap="None", layers=layers[::-1], layer_on=[True, True])
+    assert [s.color for s in fig.layout.map.layers] == ["#bdbdbd", "#737373", "#1f78b4"]
     fig, _ = _plot(data, basemap="None", layers=layers, layer_on=[False, False])
     assert len(fig.layout.map.layers) == 0
 
 
-def test_messages_without_sites_or_clicks():
-    from module.resmap import plot
-    fig, _ = _plot({"pestpath": str(ZIP)})
+def test_messages_without_sites_or_clicks(tmp_path):
+    from tests.test_utils import _rewrite_zip
+    path = tmp_path / "no_sites.zip"
+    path.write_bytes(_rewrite_zip().getvalue())
+    fig, _ = _plot({"pestpath": str(path)})
     assert "site.csv" in fig.layout.annotations[0].text
-    fig, _ = _plot({"pestpath": str(ZIP)}, clicks=None)
+    fig, _ = _plot({"pestpath": str(path)}, clicks=None)
     assert "Plot Map" in fig.layout.annotations[0].text
 
 

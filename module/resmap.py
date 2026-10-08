@@ -6,7 +6,7 @@ import pandas as pd
 from utils import parse_zip, read_sites
 from plotting import message_figure
 from layout import update_groups, update_weights, about, graph
-from geo import read_layers, morans_i
+from geo import read_layers, morans_i, LAYER_CATEGORIES, guess_category, category_layers
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Residual Map"
@@ -61,7 +61,6 @@ def in_sentence(label):
     """a label as used inside a sentence: lower case unless it starts with an acronym (RMSE)"""
     first = label.split()[0]
     return label if first.isupper() else label[0].lower() + label[1:]
-LAYER_COLORS = ["#1f77b4", "#2ca02c", "#9467bd", "#8c564b", "#e377c2", "#17becf", "#bcbd22", "#ff7f0e"]
 
 
 layout = html.Div([
@@ -286,22 +285,18 @@ def basemap_layers(basemap, opacity):
 
 
 def shape_layers(layers):
-    """map layers for the switched-on uploaded layers: polygons filled lightly with an outline"""
+    """map layers for the switched-on uploaded layers, styled and ordered by their category"""
+    order = list(LAYER_CATEGORIES)
+    def rank(l):
+        category = l.get("category") or guess_category(l["name"], l["kind"])
+        return order.index(category) if category in order else len(order)
     out = []
-    for i, l in enumerate(layers):
+    for l in sorted(layers, key=rank):
         try:
             geojson = read_layers(l["key"], l["ext"])[l["index"]]["geojson"]
         except (ValueError, IndexError, KeyError):
             continue   # upload no longer on the server
-        color = LAYER_COLORS[i % len(LAYER_COLORS)]
-        if l["kind"] == "fill":
-            out.append(dict(sourcetype="geojson", source=geojson, type="fill", color=color, opacity=0.15, below="traces"))
-        if l["kind"] in ("fill", "line"):
-            out.append(dict(sourcetype="geojson", source=geojson, type="line", color=color,
-                            line=dict(width=2 if l["kind"] == "fill" else 1.5), below="traces"))
-        else:
-            out.append(dict(sourcetype="geojson", source=geojson, type="circle", color=color,
-                            circle=dict(radius=3), below="traces"))
+        out += category_layers(geojson, l["kind"], l.get("category") or guess_category(l["name"], l["kind"]))
     return out
 
 
