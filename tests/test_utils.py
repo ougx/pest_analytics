@@ -250,6 +250,41 @@ def test_read_obs_in_pst_lowercase():
     assert obs["obsgrp"].str.islower().all()
 
 
+def _pst_with_blank_lines():
+    # blank lines inside sections, CRLF line ends, a tied parameter
+    text = _make_pst_bytes().getvalue().replace(b"p2  none", b"p2  tied").replace(b"\n", b"\r\n")
+    text = text.replace(b"* observation data\r\n", b"p2 p1\r\n\r\n* observation data\r\n\r\n")
+    return text.replace(b"obs2", b"\r\n   \r\nobs2")
+
+def test_read_par_in_pst_skips_blank_lines():
+    par = read_par_in_pst(io.BytesIO(_pst_with_blank_lines()))
+    assert par["parname"].tolist() == ["p1", "p2"]
+    assert par["tiedto"].tolist() == ["", "p1"]
+
+def test_read_obs_in_pst_skips_blank_lines():
+    obs = read_obs_in_pst(io.BytesIO(_pst_with_blank_lines()))
+    assert obs["obsname"].tolist() == ["obs1", "obs2", "obs3", "obs4"]
+
+def test_read_pst_missing_or_external_section():
+    with pytest.raises(ValueError, match="observation data"):
+        read_obs_in_pst(io.BytesIO(b"* control data\n* parameter data\np1 log factor 1 0.1 10 g 1 0 1\n"))
+    with pytest.raises(ValueError, match="external"):
+        read_par_in_pst(io.BytesIO(b"* parameter data external\npar.dat\n"))
+
+def test_read_par_stops_at_blank_line_with_crlf():
+    f = io.BytesIO(b"single point\r\np1  1.0  1.0  0.0\r\np2  0.5  1.0  0.0\r\n\r\nnot a parameter\r\n")
+    assert read_par(f)["parname"].tolist() == ["p1", "p2"]
+
+def test_read_rei_stops_at_blank_line():
+    f = io.BytesIO(b"header\r\nName Group Measured Modelled Residual Weight\r\n"
+                   b"obs1 g 1.5 1.6 -0.1 1.0\r\n\r\nsummary text\r\n")
+    assert read_rei(f)["obsname"].tolist() == ["obs1"]
+
+def test_read_rei_without_header():
+    with pytest.raises(ValueError, match="header"):
+        read_rei(io.BytesIO(b"no table here\n1 2 3\n"))
+
+
 # ---------------------------------------------------------------------------
 # parse_zip — uses the real example zip
 # ---------------------------------------------------------------------------

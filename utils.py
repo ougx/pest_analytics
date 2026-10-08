@@ -22,26 +22,31 @@ def read_df(buf, header=None, **kwargs):
 
 def read_par(f):
     """
-    read par file into a dataframe.
+    read par file into a dataframe (lines up to the first blank line after the header).
     """
     f.readline()
     lines = ''
     for l in f:
-        if l.decode() == '\n':
+        l = l.decode().strip()
+        if not l:
             break
-        lines += l.decode().strip() + '\n'
+        lines += l + '\n'
     return read_df(lines, names='parname parval scale offset'.split())
 
 def read_rei(f):
+    """read a residuals file: the table from its "Name Group Measured ..." header line"""
     for l in f:
         l = l.decode().lower().strip()
         if l.startswith('name '):
             break
+    else:
+        raise ValueError("no 'Name Group Measured Modelled ...' header line in the residuals file")
     lines = l + '\n'
     for l in f:
-        if l == '\n':
+        l = l.decode().strip()
+        if not l:
             break
-        lines += l.decode().strip() + '\n'
+        lines += l + '\n'
     return read_df(lines, header=0).rename(columns={"name":"obsname", "group":"obsgrp"})
 
 def read_jco(fbuf, offset=0):
@@ -75,22 +80,37 @@ class hpfile:
         self.LL     = np.frombuffer(fbuf, 'i4', self.NUML, offset=offset)
 
 
+def pst_section(f, title):
+    """
+    Decoded, non-blank lines of a "* title" section of a control file (f: binary file),
+    up to the next section header.
+    """
+    for l in f:
+        l = l.decode().strip()
+        if l.lower().startswith("*") and l[1:].strip().lower().startswith(title):
+            if "external" in l.lower():
+                raise ValueError(f"'{l}': sections read from external files are not supported")
+            break
+    else:
+        raise ValueError(f"no '* {title}' section in the control file")
+    for l in f:
+        l = l.decode().strip()
+        if not l:
+            continue
+        if l.startswith("*"):
+            break
+        yield l
+
+
 def read_par_in_pst(f):
     lines = ''
     tieds = {}
-    for l in f:
-        l = l.decode()
-        if l.lower().lstrip()[:16] == '* parameter data':
-            break
-    for l in f:
-        l = l.decode()
-        if l.lstrip()[0] == '*':
-            break
+    for l in pst_section(f, "parameter data"):
         if len(l.replace(',', ' ').replace('\t', ' ').split()) < 5: # skip tied parameters
-            tt = l.replace(',', ' ').replace('\t', ' ').lstrip().lower().split()
+            tt = l.replace(',', ' ').replace('\t', ' ').lower().split()
             tieds[tt[0]] = tt[1]
             continue
-        lines += l.strip() + '\n'
+        lines += l + '\n'
     par = read_df(lines, usecols=range(10),
                   names='parname partrans parchglim parval0 parlbnd parubnd pargrp scale offset dercom'.split())
     par['parname']  = par['parname'].str.lower()
@@ -103,20 +123,11 @@ def read_par_in_pst(f):
     return par
 
 def read_obs_in_pst(f):
-        lines = ''
-        for l in f:
-            if l.decode().lower().lstrip()[:18] == '* observation data':
-                break
-        for l in f:
-            l = l.decode()
-            if l.lstrip()[0] == '*':
-                break
-            lines += l.strip() + '\n'
-
-        obs = read_df(lines, usecols=range(4), names='obsname obsval weight obsgrp'.split())
-        obs['obsname'] = obs['obsname'].str.lower()
-        obs['obsgrp']   = obs['obsgrp'].str.lower()
-        return obs
+    lines = ''.join(l + '\n' for l in pst_section(f, "observation data"))
+    obs = read_df(lines, usecols=range(4), names='obsname obsval weight obsgrp'.split())
+    obs['obsname'] = obs['obsname'].str.lower()
+    obs['obsgrp']   = obs['obsgrp'].str.lower()
+    return obs
 
 def check_data(data):
     # print("data", data)
