@@ -729,3 +729,22 @@ def test_tsplot_hovermode_option(mock_pz):
     args = (1, {"pestpath": "dummy"}, "grpSite", _FIRST_SITE, "Greyout", "Lines", "Jet", False, ["6"])
     assert plot(*args).layout.hovermode == "closest"              # default
     assert plot(*args, "x unified").layout.hovermode == "x unified"
+
+
+# ---------------------------------------------------------------------------
+# Identifiability: EIGTHRESH is an eigenvalue ratio (squared singular values)
+# ---------------------------------------------------------------------------
+
+@patch("module.parident.parse_zip", return_value=GOOD_RESULT)
+def test_parident_cutoff_uses_eigenvalue_ratio(mock_pz):
+    import re
+    import numpy as np
+    from pst import get_weighted_jco
+    from module.parident import plot
+    fig = plot(1, {"pestpath": "dummy"}, "6", "1e-5", "Vertical")
+    kept, total = map(int, re.search(r"(\d+) of (\d+)", fig.layout.title.text).groups())
+    s = np.linalg.svd(get_weighted_jco(_obs, _jcos[6]).values, compute_uv=False)
+    assert kept == int(((s / s[0])**2 >= 1e-5).sum()) and total == len(s)
+    assert kept < int((s / s[0] >= 1e-5).sum())            # a singular-value cutoff would keep more
+    f = np.asarray(fig.data[0].x, dtype=float)
+    assert ((f > -1e-9) & (f < 1 + 1e-9)).all()

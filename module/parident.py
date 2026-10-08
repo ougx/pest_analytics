@@ -28,6 +28,8 @@ md = dcc.Markdown('''
     where $V$ is a matrix whose columns are orthogonal unit vectors that span the calibration solution space;
     the subscript $jj$ indicates the jth diagonal element of the matrix.
     $V$ can be obtained through singular value decomposition of the weighted parameter sensitivity matrix.
+    The solution space keeps the singular vectors whose eigenvalue of $J^TQJ$ (the squared singular value of $Q^{1/2}J$)
+    is at least the selected fraction of the largest one, like PEST's `EIGTHRESH` (default 5e-7).
 
     **Reference:**
 
@@ -45,7 +47,7 @@ layout = html.Div([
     about(md),
     dmc.Group([
         dmc.Select(id=name+"iter", label="Jacobian Iteration:", description=".jco.N, at iteration N-1 parameters", data=["1"], value="1", style={"width": "150px"}),
-        dmc.Select(id=name+"svdtrunc", label="SVD Truncation:", data=["1e-4", "1e-5", "5e-6", "1e-6", "5e-7", "1e-7", "5e-8", "1e-8", "1e-9"], value="5e-7", style={"width": "150px"}),
+        dmc.Select(id=name+"svdtrunc", label="Eigenvalue Ratio (EIGTHRESH):", data=["1e-4", "1e-5", "5e-6", "1e-6", "5e-7", "1e-7", "5e-8", "1e-8", "1e-9"], value="5e-7", style={"width": "150px"}),
         dmc.Select(id=name+"layout", label="Layout:", data=["Horizontal", "Vertical"], value="Vertical", style={"width": "150px"}),
         dmc.Button("Plot Identifiability", id=name+"update-plot", color="blue"),
     ], mt=10, align="flex-end"),
@@ -97,8 +99,9 @@ def plot(clicks, data, iiter, svdtrunc, layout):
 
     U, s, Vt = np.linalg.svd(JJ, full_matrices=False)
     V = Vt.T
-    sr = s / s[0]
-    V1 = V[:,sr>=float(svdtrunc)]
+    # EIGTHRESH is a ratio of eigenvalues of J^T Q J, i.e. of squared singular values of Q^1/2 J
+    eig_ratio = (s / s[0])**2
+    V1 = V[:, eig_ratio >= float(svdtrunc)]
 
     V1 = pd.DataFrame(V1, index=JJ.columns, columns=['eig'+str(i+1) for i in range(V1.shape[1])])
     f = np.diag(V1 @ V1.T)
@@ -108,6 +111,8 @@ def plot(clicks, data, iiter, svdtrunc, layout):
         y=f if layout=="Horizontal" else f.index,
     )
 
+    fig.update_layout(title=f"Solution space: {V1.shape[1]} of {len(s)} singular vectors "
+                            f"(eigenvalue ratio >= {float(svdtrunc):g})")
     if layout == "Horizontal":
         fig.update_layout(
             height=700,
