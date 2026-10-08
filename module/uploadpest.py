@@ -1,7 +1,7 @@
 import dash
 from dash import html, dcc, Input, Output, callback, State
 import dash_mantine_components as dmc
-from utils import parse_zip
+from utils import parse_zip, save_upload
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Upload Data"
@@ -54,8 +54,9 @@ layout = html.Div([
     State("pest-path", "value"),
 )
 def update_pest_data(nclick, filename, contents, pestpath):
+    # the uploaded file is saved on the server; the browser only keeps its key
     if nclick:
-        return {"filename": filename, "contents": contents, "pestpath":pestpath}
+        return {"filename": filename, "upload": save_upload(contents) if contents else None, "pestpath":pestpath}
 
 
 

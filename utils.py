@@ -1,8 +1,13 @@
 import base64
+import hashlib
 import io
 import os
 import re
+import tempfile
+import threading
+import time
 import zipfile
+from collections import OrderedDict
 import pandas as pd
 import numpy as np
 from collections.abc import Iterable
@@ -120,18 +125,115 @@ def check_data(data):
     return hasData
 
 
+# ---------------------------------------------------------------------------
+# Server-side storage and caching of parsed PEST data.
+# The browser only holds {"filename", "upload", "pestpath"}: an uploaded zip is
+# sent to the server once (on "Load Data"), saved under its content hash, and
+# every callback reads the parsed result from an in-memory cache.
+# ---------------------------------------------------------------------------
+
+UPLOAD_DIR = os.environ.get("PEST_UPLOAD_DIR", os.path.join(tempfile.gettempdir(), "pest_analytics_uploads"))
+UPLOAD_MAX_AGE_DAYS = 7
+CACHE_SIZE = int(os.environ.get("PEST_CACHE_SIZE", 4))  # parsed results kept in memory (2 per dataset)
+
+_cache = OrderedDict()   # (source key, with_jco) -> read_pest_zip result
+_cache_lock = threading.Lock()
+_load_locks = {}         # one lock per cache key, so concurrent callbacks parse a file only once
+
+
+def save_upload(contents):
+    """Save an uploaded zip (dcc.Upload base64 contents) on the server; return its key."""
+    decoded = base64.b64decode(contents.split(',')[1])
+    key = hashlib.sha256(decoded).hexdigest()[:32]
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    path = os.path.join(UPLOAD_DIR, key + ".zip")
+    if not os.path.exists(path):
+        with open(path, "wb") as f:
+            f.write(decoded)
+    _remove_old_uploads()
+    return key
+
+
+def _remove_old_uploads():
+    cutoff = time.time() - UPLOAD_MAX_AGE_DAYS * 86400
+    for name in os.listdir(UPLOAD_DIR):
+        path = os.path.join(UPLOAD_DIR, name)
+        try:
+            if os.path.getmtime(path) < cutoff:
+                os.remove(path)
+        except OSError:
+            pass
+
+
+def upload_path(key):
+    """Path of a saved upload, or None. The key comes from the browser, so it is validated."""
+    if isinstance(key, str) and re.fullmatch(r"[0-9a-f]{32}", key):
+        path = os.path.join(UPLOAD_DIR, key + ".zip")
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def _data_source(data):
+    """Zip file to read for the loaded data: the server path if it exists, else the saved upload."""
+    pestpath = data.get("pestpath")
+    if pestpath and os.path.exists(pestpath):
+        return pestpath
+    if data.get("upload"):
+        return upload_path(data["upload"])
+    if data.get("contents"):
+        return upload_path(save_upload(data["contents"]))
+    return None
+
+
+def _cached_read(path, with_jco):
+    """
+    Parse a zip once and keep the result in memory. A result with Jacobians also serves
+    requests without them. Keys include the file's modification time and size, so an
+    updated zip on the server is re-read.
+    """
+    st = os.stat(path)
+    source = (os.path.abspath(path), st.st_mtime_ns, st.st_size)
+    keys = [(source, True)] if with_jco else [(source, False), (source, True)]
+    with _cache_lock:
+        for k in keys:
+            if k in _cache:
+                _cache.move_to_end(k)
+                return _cache[k]
+        lock = _load_locks.setdefault(keys[0], threading.Lock())
+    with lock:
+        with _cache_lock:
+            if keys[0] in _cache:
+                return _cache[keys[0]]
+        result = read_pest_zip(path, True, True, with_jco)
+        with _cache_lock:
+            _cache[keys[0]] = result
+            while len(_cache) > CACHE_SIZE:
+                _cache.popitem(last=False)
+            _load_locks.pop(keys[0], None)
+    return result
+
+
+def clear_cache():
+    with _cache_lock:
+        _cache.clear()
+
+
 def parse_zip(data, loadpar=True, loadrei=False, loadjco=False):
+    """
+    Return (pst, par, obs, pars, reis, jcos) for the loaded data, from the cache.
+    The DataFrames are shared between callbacks: treat them as read-only.
+    """
     if check_data(data):
-        if data.get("pestpath"):
-            # check if file exists
-            pestpath = data.get("pestpath")
-            if os.path.exists(pestpath):
-                # print("pestpath", pestpath)
-                return read_pest_zip(pestpath, loadpar, loadrei, loadjco)
-        if data.get("contents"):
-            content_string = data.get("contents").split(',')[1]
-            decoded = base64.b64decode(content_string)
-            return read_pest_zip(io.BytesIO(decoded), loadpar, loadrei, loadjco)
+        path = _data_source(data)
+        if path:
+            pst, par, obs, pars, reis, jcos = _cached_read(path, loadjco)
+            if pst == "":
+                return pst, par, obs, {}, {}, {}
+            return (pst, par, obs,
+                    dict(pars) if loadpar else {},
+                    dict(reis) if loadrei else {},
+                    dict(jcos) if loadjco else {})
     return None, None, None, None, None, None
 
 def lower_group_columns(df):

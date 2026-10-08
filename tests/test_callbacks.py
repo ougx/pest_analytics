@@ -48,11 +48,17 @@ def test_uploadpest_callback_no_data():
     status, tab = upload_pest(None)
     assert tab == "uploadpest"
 
-def test_update_pest_data_stores_dict():
+def test_update_pest_data_saves_upload_on_server(tmp_path, monkeypatch):
+    import base64
+    import utils
     from module.uploadpest import update_pest_data
-    result = update_pest_data(1, "file.zip", "base64data==", None)
+    monkeypatch.setattr(utils, "UPLOAD_DIR", str(tmp_path))
+    contents = "data:application/zip;base64," + base64.b64encode(_ZIP.read_bytes()).decode()
+    result = update_pest_data(1, "file.zip", contents, None)
     assert result["filename"] == "file.zip"
-    assert result["contents"] == "base64data=="
+    assert "contents" not in result                       # the file is not kept in the browser
+    assert utils.upload_path(result["upload"]) is not None
+    assert utils.parse_zip(result)[0] == _PST_NAME
 
 def test_update_pest_data_no_click_returns_none():
     from module.uploadpest import update_pest_data

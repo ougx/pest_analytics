@@ -355,3 +355,93 @@ def test_read_pest_zip_keeps_prior_information_rows():
     assert prior.obsgrp.str.startswith("regul").all()
     assert (prior.grpType == prior.obsgrp).all()
     assert prior.weight.notna().all()
+
+
+# ---------------------------------------------------------------------------
+# parse_zip caching and server-side uploads
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def fresh_cache(tmp_path, monkeypatch):
+    import utils
+    monkeypatch.setattr(utils, "UPLOAD_DIR", str(tmp_path / "uploads"))
+    utils.clear_cache()
+    yield utils
+    utils.clear_cache()
+
+def _count_reads(utils, monkeypatch):
+    calls = []
+    real = utils.read_pest_zip
+    def counting(*args, **kwargs):
+        calls.append(args[1:])
+        return real(*args, **kwargs)
+    monkeypatch.setattr(utils, "read_pest_zip", counting)
+    return calls
+
+def test_parse_zip_reads_file_once(fresh_cache, monkeypatch):
+    utils = fresh_cache
+    calls = _count_reads(utils, monkeypatch)
+    data = {"pestpath": str(TESTDATA_ZIP)}
+    a = utils.parse_zip(data, False, True, True)
+    b = utils.parse_zip(data, True, True, True)
+    c = utils.parse_zip(data, False, False, False)   # served by the result with Jacobians
+    assert len(calls) == 1
+    assert a[5][1] is b[5][1]                         # same Jacobian object, not re-read
+    assert c[3] == {} and c[4] == {} and c[5] == {}   # flags still honored
+    assert len(b[3]) == 6 and len(b[4]) == 7
+
+def test_parse_zip_without_jco_does_not_load_jacobians(fresh_cache, monkeypatch):
+    utils = fresh_cache
+    calls = _count_reads(utils, monkeypatch)
+    data = {"pestpath": str(TESTDATA_ZIP)}
+    utils.parse_zip(data, True, True, False)
+    utils.parse_zip(data, False, False, False)
+    assert calls == [(True, True, False)]
+    utils.parse_zip(data, False, False, True)
+    assert calls[-1] == (True, True, True)
+
+def test_parse_zip_rereads_updated_file(fresh_cache, monkeypatch, tmp_path):
+    import os, shutil
+    utils = fresh_cache
+    calls = _count_reads(utils, monkeypatch)
+    path = tmp_path / "run.zip"
+    shutil.copy(TESTDATA_ZIP, path)
+    utils.parse_zip({"pestpath": str(path)})
+    st = os.stat(path)
+    os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))   # PEST re-run updates the zip
+    utils.parse_zip({"pestpath": str(path)})
+    assert len(calls) == 2
+
+def test_parse_zip_concurrent_callbacks_parse_once(fresh_cache, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    utils = fresh_cache
+    calls = _count_reads(utils, monkeypatch)
+    data = {"pestpath": str(TESTDATA_ZIP)}
+    with ThreadPoolExecutor(8) as ex:
+        results = list(ex.map(lambda _: utils.parse_zip(data, True, True, True), range(8)))
+    assert len(calls) == 1
+    assert all(r[0] == "Napa2026_04" for r in results)
+
+def test_parse_zip_cache_is_bounded(fresh_cache, monkeypatch, tmp_path):
+    import shutil
+    utils = fresh_cache
+    monkeypatch.setattr(utils, "CACHE_SIZE", 2)
+    for i in range(3):
+        path = tmp_path / f"run{i}.zip"
+        shutil.copy(TESTDATA_ZIP, path)
+        utils.parse_zip({"pestpath": str(path)})
+    assert len(utils._cache) == 2
+
+def test_save_upload_and_parse_by_key(fresh_cache):
+    import base64
+    utils = fresh_cache
+    contents = "data:application/zip;base64," + base64.b64encode(TESTDATA_ZIP.read_bytes()).decode()
+    key = utils.save_upload(contents)
+    assert key == utils.save_upload(contents)         # same file, same key, stored once
+    assert utils.parse_zip({"upload": key})[0] == "Napa2026_04"
+
+def test_upload_key_is_validated(fresh_cache):
+    utils = fresh_cache
+    assert utils.upload_path("../../etc/passwd") is None
+    assert utils.upload_path("0" * 32) is None        # well-formed but unknown
+    assert utils.parse_zip({"upload": "../x"})[0] is None
