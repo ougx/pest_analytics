@@ -23,57 +23,18 @@ md = dcc.Markdown('''
     ''',
     mathjax=True)
 
-# ---------------------------
-# Globals
-# ---------------------------
-value_cols = ["parval", "parvalrel", "parvalrel", "parvalnorm", "parvallognorm"]
-
-
-def check_group(id, label=None, options=["All"], value=None, **kwargs):
-    row = []
-    if label:
-        row.append(dmc.Text(label, fw=500, className="my-auto", style={"minWidth": "100px", "margin-left": "auto"}))
-    row.append(dmc.CheckboxGroup(
-        id=id,
-        children=dmc.Group([dmc.Checkbox(option, value=option) for option in options], mt=10,),
-        value=value or options,
-        persistence=True,
-        **kwargs))
-    return dmc.Group(row)
-
-def ratio_group(id, label=None, options=["All"], **kwargs):
-    row = []
-    if label:
-        row.append(dmc.Text(label, fw=500, className="my-auto", style={"minWidth": "100px"}))
-    row.append(dmc.RadioGroup(
-        id=id,
-        children=dmc.Group([dmc.Radio(k, value=k) for k in options], my=10),
-        value=options[0],
-        persistence=True,
-        **kwargs))
-    return dmc.Group(row)
-
-def chip_group(id, label=None, options=["All"], value=[], multiple=True,  **kwargs):
-    row = []
-    values = value if isiterable(value) else [value]
-    if label:
-        row.append(dmc.Text(label, fw=500, className="my-auto", style={"minWidth": "160px"}))
-    row.append(dmc.ChipGroup(
-        id=id,
-        children=[dmc.Chip(option, value=option, ) for option in options],
-        multiple=multiple,
-        value=value,
-        persistence=True,
-        **kwargs))
-    return dmc.Group(row)
-
 layout = dmc.Stack(
     [
         html.H3(fullname),
         about(md),
-        chip_group(name+"valcol"  , options=["Raw", "Relative", "Absolute", "Normalized"], multiple=False, value="Relative", label="Value Type:"),
-        chip_group(name+"pargroup", options=["pargp1", "pargp2", "pargp3"], multiple=True, value=["pargp1", "pargp2", "pargp3"], label="Parameter Group:"),
-        chip_group(name+"partrans", options=["none", "log", "tied", "fixed"], multiple=True, value=["none", "log", "tied"], label="Transformation Type:"),
+        dmc.Group([
+            dmc.Select(id=name+"valcol", label="Value Type:", data=["Raw", "Relative", "Absolute", "Normalized"],
+                       value="Relative", persistence=True, style={"width": "150px"}),
+            dmc.MultiSelect(id=name+"pargroup", label="Parameter Group:", data=[], value=[],
+                            searchable=True, clearable=True, style={"width": "420px"}),
+            dmc.MultiSelect(id=name+"partrans", label="Transformation Type:", data=["none", "log", "tied", "fixed"],
+                            value=["none", "log", "tied"], persistence=True, style={"width": "320px"}),
+        ], mt=10, align="flex-end"),
         dmc.Group([
             dmc.Switch(id=name+"nearbound", label="Highlight Near Bound", size="md", color="blue", pb=10, checked=True),
             dmc.Select(id=name+"bndlimit", label="Bound Limit:", data="100% 99% 98% 95% 90%".split(), value="98%", style={"width": "150px"}),
@@ -98,7 +59,7 @@ layout = dmc.Stack(
 # ---------------------------
 
 @callback(
-    Output(name+"pargroup", "children"),
+    Output(name+"pargroup", "data"),
     Output(name+"pargroup", "value"),
     Input ("pest-data", "data"),
 )
@@ -110,8 +71,7 @@ def upload_pest(data):
         return [no_update, no_update]
     else:
         pargroups = [p for p in par.pargrp.unique() if p.strip() != ""]
-        pargroups_chp = [dmc.Chip(p, value=p) for p in pargroups]
-    return [pargroups_chp, pargroups]
+    return [pargroups, pargroups]
 
 @callback(
     Output(name+"plot", "figure"),
