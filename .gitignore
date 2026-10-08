@@ -7,3 +7,5 @@ sspaPlot/.spyproject/
 *.html
 __pycache__
 autotest/*
+.claude/settings.local.json
+_test*

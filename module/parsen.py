@@ -85,10 +85,11 @@ def upload_pest(data):
         return [no_update, no_update, no_update]
     else:
         pp = par[par.partrans.isin(["log", "none"])]
-        data = []
+        dats = []
         for gp, df in pp.groupby("pargrp"):
-            data.append({"group": gp, "items": df.parname.tolist()})
-    return [data] + update_groups(data, "obsgrp")
+            dats.append({"group": gp, "items": df.parname.tolist()})
+    # print(obs, update_groups(data, "obsgrp"))
+    return [dats] + update_groups(data, "obsgrp")
 
 @callback(
     Output(name+"plot", "figure"),
@@ -96,11 +97,12 @@ def upload_pest(data):
     State( "pest-data", "data"),
     State( name+"stype", "value"),
     State( name+"otype", "value"),
+    State( name+"grp", "value"),
     State(name+"nobs", "value"),
     State(name+"palette", "value"),
     State(name+"parselect", "value"),
 )
-def plot(clicks, data, stype, otype, nobs, palette, parselect):
+def plot(clicks, data, stype, otype, grp, nobs, palette, parselect):
     if clicks is None or clicks == 0:
         return px.scatter(title="Upload data and click 'Plot Sensitivity' to see plot")
     if data is None or data == {}:
@@ -122,7 +124,7 @@ def plot(clicks, data, stype, otype, nobs, palette, parselect):
     ddf = {} # aggregated sensitivity
     sdf = {} # (raw)signed sensitivity
     for i, df0 in jcos.items():
-        df = pd.merge(df0, obs, left_index=True, right_on="obsname")
+        df = pd.merge(df0, obs, left_index=True, right_on="obsname", suffixes=(None, "_1"))
         df.set_index("obsname", inplace=True)
         sdf[f"Iter {i}"] = (df["weight"].values[:, None] * df[parselect]).sum(axis=1)
         if stype == "L1 Norm":
@@ -132,8 +134,8 @@ def plot(clicks, data, stype, otype, nobs, palette, parselect):
     sdf = pd.DataFrame(sdf, )
     ddf = pd.DataFrame(ddf, )
     if otype == "Obs Groups":
-        ddf = ddf.groupby(obs.set_index("obsname").loc[ddf.index, "group"]).sum()
-        sdf = sdf.groupby(obs.set_index("obsname").loc[sdf.index, "group"]).sum()
+        ddf = ddf.groupby(obs.set_index("obsname").loc[ddf.index, grp]).sum()
+        sdf = sdf.groupby(obs.set_index("obsname").loc[sdf.index, grp]).sum()
 
     if stype == "L2 Norm":
         ddf = ddf**0.5
@@ -171,13 +173,14 @@ def plot(clicks, data, stype, otype, nobs, palette, parselect):
 
     # add sensitivity plot
     for i, c in enumerate(ddf.sort_index(axis=1).columns):
-        res = reis[i].set_index("obsname").loc[ddf.index]
-        res["val"] = res["modelled"] #* obs.set_index("name").loc[ddf.index]
+        if otype=="Observations":
+            res = reis[i].set_index("obsname").loc[ddf.index]
+            res["val"] = res["modelled"] #* obs.set_index("name").loc[ddf.index]
         fig.add_trace(go.Scatter(
             x=ddf.index,
             # x=obs.set_index("obsname").loc[ddf.index, ["obsval"]].to_string(index=True, header=False).split("\n"),
             y=ddf[c],
-            text=res["val"].to_string(index=False, header=False).split("\n") if otype=="Observations" else None,
+            text=None if otype!="Observations" else res["val"].to_string(index=False, header=False).split("\n"),
             mode="lines+markers",
             name=c,
             hovertemplate='Sen:%{y}; Modeled:%{text}',

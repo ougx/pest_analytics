@@ -1,0 +1,39 @@
+/* PEST Calibration Diagnostics — Custom styles */
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: #ffffff;
+    font-family: 'DM Sans', sans-serif;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #aaa; }
+
+/* NavLink active state */
+.mantine-NavLink-root[data-active] {
+    background: rgba(47, 122, 94, 0.10) !important;
+    color: #2f7a5e !important;
+}
+.mantine-NavLink-root[data-active] .mantine-NavLink-label {
+    color: #2f7a5e !important;
+    font-weight: 600 !important;
+}
+
+/* Chip active */
+.mantine-Chip-label[data-checked] {
+    font-weight: 600;
+}
+
+/* Plotly chart tweaks */
+.js-plotly-plot .plotly .modebar { display: none !important; }
+
+/* KPI card hover */
+.mantine-Paper-root:hover {
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08) !important;
+    transition: box-shadow 0.15s ease;
+}

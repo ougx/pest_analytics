@@ -195,15 +195,15 @@ def read_pest_zip(zip, loadpar=True, loadrei=False, loadjco=False):
         rr["residual"] = rr["measured"] - rr["modelled"]
         reis = {0:rr.loc[:, ["obsname", "obsgrp", "measured", "modelled", "residual", "weight"]]} | reis
     if par is not None and pa is not None:
-        par = pd.merge(par, pa, on='parname', how="left")
+        par = pd.merge(par, pa, on='parname', how="left", suffixes=(None, "_1"))
     if obs is not None and ob is not None:
-        obs = pd.merge(obs, ob, on='obsname', how="left")
+        obs = pd.merge(obs, ob, on='obsname', how="left", suffixes=(None, "_1"))
     if reis:
         for i, df in reis.items():
-            reis[i] = pd.merge(df[["obsname", "measured", "modelled", "residual"]], obs, on="obsname")
+            reis[i] = pd.merge(df[["obsname", "measured", "modelled", "residual"]], obs, on="obsname", suffixes=(None, "_1"))
     if pars:
         for i, df in pars.items():
-            pars[i] = pd.merge(df, par.drop(["scale", "offset"], axis=1), on="parname")
+            pars[i] = pd.merge(df, par.drop(["scale", "offset"], axis=1), on="parname", suffixes=(None, "_1"))
     return pst, par, obs, pars, reis, jcos
 #%%
 
@@ -220,16 +220,16 @@ if __name__ == "__main__":
 
     def test_contribution():
         from pst import get_weighted_jco
-        
+
         iiter = 1
         jco0 = jcos[int(iiter)]
         rei0 = reis[int(iiter)]
         par0 = pars[int(iiter)]
-        
-        df = pd.merge(jco0, rei0, left_index=True, right_on="obsname")
+
+        df = pd.merge(jco0, rei0, left_index=True, right_on="obsname", suffixes=(None, "_1"))
         r = df.set_index("obsname")[["residual"]]
         J = df.loc[:, jco0.columns]
-        
+
         # calculate the joint contribution matrix
         delta = par0.set_index("parname")
         delta = (delta[["parval"]] - delta[["parval0"]].values).loc[jco0.columns].T
@@ -237,7 +237,7 @@ if __name__ == "__main__":
         C.index = r.index
         # total contribution per parameter
         param_contrib = C.sum(axis=0)
-        
+
         # total contribution per observation
         obs_contrib = C.sum(axis=1)
 
@@ -303,7 +303,7 @@ if __name__ == "__main__":
             oo = obs[obs["group"].isin(obsselect)]
 
         for i, jco0 in jcos.items():
-            df = pd.merge(jco0, oo, left_index=True, right_on="obsname")
+            df = pd.merge(jco0, oo, left_index=True, right_on="obsname", suffixes=(None, "_1"))
             df.set_index("obsname", inplace=True)
             sdf[f"Iter {i}"] = (df["weight"].values[:, None] * df).sum(axis=0)
             if stype == "L1 Norm":
@@ -338,7 +338,7 @@ if __name__ == "__main__":
         sdf = {} # (raw)signed sensitivity
         nobs = 20
         for i, df0 in jcos.items():
-            df = pd.merge(df0, obs, left_index=True, right_on="obsname")
+            df = pd.merge(df0, obs, left_index=True, right_on="obsname", suffixes=(None, "_1"))
             df.set_index("obsname", inplace=True)
             sdf[f"Iter {i}"] = (df["weight"].values[:, None] * df[parselect]).sum(axis=1)
             if stype == "L1 Norm":

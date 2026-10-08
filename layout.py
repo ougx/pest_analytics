@@ -19,9 +19,10 @@ def update_weights(data, default_value="weight"):
     if data is not None:
         pst, par, obs, pars, reis, jcos = parse_zip(data, False, False, False)
         if pst:
+            weight_cols = [c for c in obs.columns if c.lower().startswith("weight")]
             return [
-                [c for c in obs.columns if c.lower().startswith("weight")],
-                default_value if default_value in obs.columns else "weight"
+                weight_cols,
+                default_value if default_value in obs.columns else weight_cols[0]
             ]
     return [no_update, no_update]
 
@@ -37,7 +38,7 @@ def update_obs(data, otype, grp, filter_zeroweight=True):
                 for gp, df in obs.groupby("obsgrp"):
                     obss.append({"group": gp, "items": df.obsname.tolist()})
             else:
-                obss = [gp for gp in obs[grp].unique() if not gp.startswith("regul")]
+                obss = [gp for gp in obs[grp].unique().astype(str) if not gp.startswith("regul")]
             # print("obss", obss)
             return obss
     return no_update

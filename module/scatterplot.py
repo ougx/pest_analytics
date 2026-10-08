@@ -154,16 +154,16 @@ def plot(clicks, data, grp, site, as_residual, zeroweight, palette, invcmap):
             marker=dict(color=[colors[i] if w>0 else "grey" for w in ts["weight"]] if zeroweight=="Greyout" else colors[i])
         ), row=1, col=1)
         sims["Iter " + str(i)] = [
-            ts["residual"].min(),
-            ts["residual"].mean(),
-            ts["residual"].max(),
             ((ts["residual"]**2).sum()/len(ts))**0.5,
-            ts["residual"].abs().mean(),
             (np.corrcoef(ts["measured"], ts["modelled"])[0,1])**2,
+            ts["residual"].abs().mean(),
+            ts["residual"].mean(),
+            ts["residual"].min(),
+            ts["residual"].max(),
         ]
 
     sims = pd.DataFrame(sims)
-    sims.index = "MinResid MeanResid MaxResid RMSE MeanAbsResid R2".split()
+    sims.index = "RMSE R2 MeanAbsResid MeanResid MinResid MaxResid".split()
     # Add table
     fig.add_trace(
         go.Table(
@@ -181,7 +181,7 @@ def plot(clicks, data, grp, site, as_residual, zeroweight, palette, invcmap):
                 align="center"
             )
         ),
-        row=2, col=1
+        row=1, col=2
     )
     fig.update_layout(
         height=700,
