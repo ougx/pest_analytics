@@ -72,25 +72,25 @@ def test_update_pest_data_no_click_returns_none():
 
 @patch("module.phiupdate.parse_zip", return_value=GOOD_RESULT)
 def test_phiupdate_returns_figure(mock_pz):
-    from module.phiupdate import upload_pest
-    fig = upload_pest({"pestpath": "dummy"}, "obsgrp", "weight")
+    from module.phiupdate import phi_figure
+    fig = phi_figure({"pestpath": "dummy"}, "obsgrp", "weight")
     assert isinstance(fig, go.Figure)
 
 @patch("module.phiupdate.parse_zip", return_value=NO_PST_RESULT)
 def test_phiupdate_no_pst_returns_empty_figure(mock_pz):
-    from module.phiupdate import upload_pest
-    fig = upload_pest({"pestpath": "dummy"}, "obsgrp", "weight")
+    from module.phiupdate import phi_figure
+    fig = phi_figure({"pestpath": "dummy"}, "obsgrp", "weight")
     assert isinstance(fig, go.Figure)
 
 def test_phiupdate_no_data_returns_figure():
-    from module.phiupdate import upload_pest
-    fig = upload_pest(None, "obsgrp", "weight")
+    from module.phiupdate import phi_figure
+    fig = phi_figure(None, "obsgrp", "weight")
     assert isinstance(fig, go.Figure)
 
 @patch("module.phiupdate.parse_zip", return_value=GOOD_RESULT)
 def test_phiupdate_figure_has_traces(mock_pz):
-    from module.phiupdate import upload_pest
-    fig = upload_pest({"pestpath": "dummy"}, "obsgrp", "weight")
+    from module.phiupdate import phi_figure
+    fig = phi_figure({"pestpath": "dummy"}, "obsgrp", "weight")
     assert len(fig.data) > 0
 
 
@@ -499,17 +499,17 @@ def test_obssen_without_hp_and_wide_group(mock_pz):
     assert names == sorted(names, key=lambda c: int(c.split()[1]))
 
 def test_phiupdate_flags_unreasonable_residuals():
-    from module.phiupdate import upload_pest
+    from module.phiupdate import phi_figure
     bad = {k: v.copy() for k, v in _reis.items()}
     bad[3]["residual"] = 1e30
     with patch("module.phiupdate.parse_zip", return_value=(_pst, _par, _obs, _pars, bad, _jcos)):
-        fig = upload_pest({"pestpath": "dummy"}, "obsgrp", "weight")
+        fig = phi_figure({"pestpath": "dummy"}, "obsgrp", "weight")
     assert "rei.3" in fig.layout.title.text
 
 @patch("module.phiupdate.parse_zip", return_value=GOOD_RESULT)
 def test_phiupdate_includes_regularization_groups(mock_pz):
-    from module.phiupdate import upload_pest
-    fig = upload_pest({"pestpath": "dummy"}, "obsgrp", "weight")
+    from module.phiupdate import phi_figure
+    fig = phi_figure({"pestpath": "dummy"}, "obsgrp", "weight")
     assert any(str(t.name).startswith("regul") for t in fig.data)
 
 

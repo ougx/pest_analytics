@@ -1,5 +1,5 @@
 import dash
-from dash import dcc, html, callback, Input, Output, no_update
+from dash import dcc, html, callback, Input, Output, State, no_update
 import dash_mantine_components as dmc
 from utils import parse_zip, isiterable
 import plotly.express as px
@@ -28,6 +28,7 @@ layout = dmc.Stack(
         dmc.Group([
         dmc.Select(id=name+"grp"   , label="Grouped by:" , data=["obsgrp"], value="obsgrp", style={"width": "150px"}),
         dmc.Select(id=name+"weight", label="Weighted by:", data=["weight"], value="weight", style={"width": "150px"}),
+        dmc.Button("Plot Phi", id=name+"update-plot", color="blue"),
         ], mt=10, align="flex-end"),
         dcc.Loading(dcc.Graph(id=name+"plot", figure=go.Figure(layout=dict(height=650, )), style={"margin-bottom":"90px"})),
     ]
@@ -45,13 +46,28 @@ def upload_pest(data):
     return update_groups(data, "grpType") + update_weights(data, "weight")
 
 
+# drawn as soon as data is loaded (this is the landing page), then on "Plot Phi" like the other pages
 @callback(
     Output(name+"plot", "figure"),
     Input("pest-data", "data"),
-    Input(name+"grp", "value"),
-    Input(name+"weight", "value"),
 )
-def upload_pest(data, grp, weight):
+def plot_on_load(data):
+    return phi_figure(data, update_groups(data, "grpType")[1], update_weights(data, "weight")[1])
+
+
+@callback(
+    Output(name+"plot", "figure", allow_duplicate=True),
+    Input(name+"update-plot", "n_clicks"),
+    State("pest-data", "data"),
+    State(name+"grp", "value"),
+    State(name+"weight", "value"),
+    prevent_initial_call=True,
+)
+def plot(clicks, data, grp, weight):
+    return phi_figure(data, grp, weight)
+
+
+def phi_figure(data, grp, weight):
     if data:
         pst, par, obs, pars, reis, jcos = parse_zip(data, True, True, False)
         if pst and reis:
