@@ -1,13 +1,17 @@
 import dash
 from dash import html, dcc, Input, Output, callback, clientside_callback, State, no_update
 import dash_mantine_components as dmc
+import os
 from utils import parse_zip, save_upload, read_sites
+from geo import read_layers
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Upload Data"
 
 
 UPLOAD_PROMPT = "Drag and drop a Zip file containing PEST files (*.pst, *.rei, *.par, *.jco)"
+LAYER_PROMPT = ("Drag and drop zipped shapefiles (.shp with its .shx, .dbf and .prj) or GeoJSON files "
+                "to show on the Residual Map; several files at once are fine")
 
 upload = dcc.Upload(
     id="upload-pest",
@@ -51,7 +55,24 @@ layout = html.Div([
         "Optional obs.csv [obsname, grp*, time] and par.csv [parname, grp*] in the zip file can be used to regroup observations and parameters.",
         html.Br(),
         "Phi is calculated from the .rei files; the initial Phi is calculated from the .hp file or the .rei.0 file.",
+        html.Br(),
+        "Optional site.csv [site, lat, lon, ...] in the zip file locates the sites (e.g. grpSite values) on the Residual Map.",
     ], size="sm", c="dimmed"),
+    html.H4("Map layers (optional)", style={"margin-top": "30px"}),
+    dcc.Upload(
+        id="upload-layers",
+        children=LAYER_PROMPT,
+        multiple=True,
+        accept=".zip,.geojson,.json",
+        style={"border": "1px dashed", "width": "100%", "padding": "20px", "textAlign": "center", "color": "#228be6"},
+    ),
+    html.Div(id="layer-message", style={"margin-top": "10px"}),
+    dmc.Group([
+        html.Div(id="layer-list"),
+        dmc.Button("Clear layers", id="btn-clear-layers", size="xs", variant="subtle", color="red"),
+    ], justify="space-between", mt=10),
+    dcc.Store(id="map-layers", storage_type="memory"),
+    dcc.Store(id="map-layers-saved", storage_type="memory"),
     # pages listen to pest-data. Its small reference (a path or upload key) is also saved in the
     # browser's sessionStorage, so a page reload in this browser tab restores the loaded data.
     dcc.Store(id="pest-data", storage_type="memory"),
@@ -95,6 +116,85 @@ clientside_callback(
     prevent_initial_call="initial_duplicate",  # runs on page load
 )
 
+
+
+# map layers: same pattern, saved separately so layers can be added without reloading the PEST data
+clientside_callback(
+    """function (layers) {
+        if (layers !== null && layers !== undefined) {
+            window.sessionStorage.setItem("map-layers", JSON.stringify(layers));
+        }
+        return window.dash_clientside.no_update;
+    }""",
+    Output("map-layers-saved", "data"),
+    Input("map-layers", "data"),
+)
+
+clientside_callback(
+    """function (pathname) {
+        const saved = window.sessionStorage.getItem("map-layers");
+        return saved ? JSON.parse(saved) : window.dash_clientside.no_update;
+    }""",
+    Output("map-layers", "data", allow_duplicate=True),
+    Input("pest-url", "pathname"),
+    prevent_initial_call="initial_duplicate",  # runs on page load
+)
+
+
+@callback(
+    Output("map-layers", "data"),
+    Output("layer-message", "children"),
+    Output("upload-layers", "contents"),
+    Input("upload-layers", "contents"),
+    State("upload-layers", "filename"),
+    State("map-layers", "data"),
+    running=[(Output("upload-layers", "disabled"), True, False)],
+)
+def add_layers(contents, filenames, layers):
+    """save uploaded layer files on the server and list their layers; the browser keeps only keys"""
+    if not contents:
+        return no_update, no_update, no_update
+    layers = list(layers or [])
+    errors = []
+    for content, filename in zip(contents, filenames):
+        ext = os.path.splitext(filename)[1].lstrip(".").lower()
+        if ext not in ("zip", "geojson", "json"):
+            errors.append(f"{filename}: not a .zip or .geojson file")
+            continue
+        try:
+            key = save_upload(content, ext)
+            found = read_layers(key, ext)
+        except Exception as e:
+            errors.append(f"{filename}: {e}")
+            continue
+        for i, layer in enumerate(found):
+            name = layer["name"] if ext == "zip" else os.path.splitext(filename)[0]
+            entry = {"key": key, "ext": ext, "index": i, "name": name, "kind": layer["kind"], "count": layer["count"]}
+            layers = [l for l in layers if (l["key"], l["index"]) != (key, i)] + [entry]
+    msg = [message(e, "red") for e in errors] or None
+    return layers, msg, None   # clear the drop zone so the same file can be dropped again
+
+
+@callback(
+    Output("map-layers", "data", allow_duplicate=True),
+    Output("layer-message", "children", allow_duplicate=True),
+    Input("btn-clear-layers", "n_clicks"),
+    prevent_initial_call=True,
+)
+def clear_layers(n_clicks):
+    return [], None
+
+
+@callback(
+    Output("layer-list", "children"),
+    Input("map-layers", "data"),
+)
+def show_layers(layers):
+    if not layers:
+        return dmc.Text("No map layers loaded.", size="sm", c="dimmed")
+    kinds = {"fill": "polygon", "line": "line", "circle": "point"}
+    described = [f"{l['name']} ({l['count']} {kinds[l['kind']]}{'' if l['count'] == 1 else 's'})" for l in layers]
+    return dmc.Text("Layers: " + "; ".join(described), size="sm")
 
 
 @callback(

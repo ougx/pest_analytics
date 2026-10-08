@@ -142,12 +142,16 @@ _cache_lock = threading.Lock()
 _load_locks = {}         # one lock per cache key, so concurrent callbacks parse a file only once
 
 
-def save_upload(contents):
-    """Save an uploaded zip (dcc.Upload base64 contents) on the server; return its key."""
+UPLOAD_EXTENSIONS = ("zip", "geojson", "json")
+
+
+def save_upload(contents, ext="zip"):
+    """Save an uploaded file (dcc.Upload base64 contents) on the server; return its key."""
+    assert ext in UPLOAD_EXTENSIONS
     decoded = base64.b64decode(contents.split(',')[1])
     key = hashlib.sha256(decoded).hexdigest()[:32]
     os.makedirs(UPLOAD_DIR, exist_ok=True)
-    path = os.path.join(UPLOAD_DIR, key + ".zip")
+    path = os.path.join(UPLOAD_DIR, f"{key}.{ext}")
     if not os.path.exists(path):
         with open(path, "wb") as f:
             f.write(decoded)
@@ -166,10 +170,10 @@ def _remove_old_uploads():
             pass
 
 
-def upload_path(key):
+def upload_path(key, ext="zip"):
     """Path of a saved upload, or None. The key comes from the browser, so it is validated."""
-    if isinstance(key, str) and re.fullmatch(r"[0-9a-f]{32}", key):
-        path = os.path.join(UPLOAD_DIR, key + ".zip")
+    if isinstance(key, str) and re.fullmatch(r"[0-9a-f]{32}", key) and ext in UPLOAD_EXTENSIONS:
+        path = os.path.join(UPLOAD_DIR, f"{key}.{ext}")
         if os.path.exists(path):
             return path
     return None
