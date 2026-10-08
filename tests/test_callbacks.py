@@ -488,7 +488,7 @@ def test_parsen_without_hp(mock_pz):
     from module.parsen import plot
     fig = plot(1, {"pestpath": "dummy"}, "L2 Norm", "Observations", "obsgrp", "10", "Jet", [_FIRST_PAR])
     names = [t.name for t in fig.data if t.mode == "lines+markers"]
-    assert names == [f"Iter {i}" for i in range(0, _N_ITER + 1)]
+    assert names == [f"Jacobian {i}" for i in range(1, _N_ITER + 1)]
 
 @patch("module.obssen.parse_zip", return_value=NO_HP_RESULT)
 def test_obssen_without_hp_and_wide_group(mock_pz):
@@ -549,3 +549,28 @@ def test_stats_ignore_zero_weight_display_option(module):
                 fig = plot(1, {"pestpath": "dummy"}, "grpSite", _MIXED_SITE, zeroweight, "Lines", "Jet", False)
             tables.append(_stats_table(fig))
     assert tables[0] == tables[1] == tables[2]
+
+
+# ---------------------------------------------------------------------------
+# Jacobian N is shown in the color of iteration N-1 (where it was computed)
+# ---------------------------------------------------------------------------
+
+@patch("module.parsen.parse_zip", return_value=GOOD_RESULT)
+def test_parsen_jacobian_colored_by_previous_iteration(mock_pz):
+    from module.parsen import plot
+    fig = plot(1, {"pestpath": "dummy"}, "L2 Norm", "Observations", "obsgrp", "10", "Jet", [_FIRST_PAR])
+    values = {t.name: t.marker.color for t in fig.data if t.mode == "markers"}
+    for t in fig.data:
+        if t.mode == "lines+markers":
+            k = int(t.name.split()[1])
+            assert t.line.color == values[f"Iter {k - 1}"]
+
+@patch("module.obssen.parse_zip", return_value=GOOD_RESULT)
+def test_obssen_jacobian_colored_by_previous_iteration(mock_pz):
+    from module.obssen import plot
+    fig = plot(1, {"pestpath": "dummy"}, "L2 Norm", "Observations", "obsgrp", "10", "Jet", [_FIRST_OBS])
+    values = {t.name: t.marker.color for t in fig.data if t.mode == "markers" and t.name != "Observed"}
+    lines = [t for t in fig.data if t.mode == "lines+markers"]
+    assert [t.name for t in lines] == [f"Jacobian {i}" for i in range(1, _N_ITER + 1)]
+    for t in lines:
+        assert t.line.color == values[f"Iter {int(t.name.split()[1]) - 1}"]

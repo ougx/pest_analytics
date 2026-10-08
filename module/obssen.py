@@ -104,11 +104,11 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, obsselect):
     obsselect = oo.obsname.tolist()
     for i, jco0 in jcos.items():
         df = jco0.loc[oo.obsname]
-        sdf[f"Iter {i}"] = (oo["weight"].values[:, None] * df).sum(axis=0)
+        sdf[f"Jacobian {i}"] = (oo["weight"].values[:, None] * df).sum(axis=0)
         if stype == "L1 Norm":
-            ddf[f"Iter {i}"] =  (oo["weight"].values[:, None] * df .abs()).sum(axis=0)
+            ddf[f"Jacobian {i}"] =  (oo["weight"].values[:, None] * df .abs()).sum(axis=0)
         else:
-            ddf[f"Iter {i}"] = ((oo["weight"].values[:, None] * df)**2).sum(axis=0)
+            ddf[f"Jacobian {i}"] = ((oo["weight"].values[:, None] * df)**2).sum(axis=0)
     sdf = pd.DataFrame(sdf, )
     ddf = pd.DataFrame(ddf, )
 
@@ -121,14 +121,14 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, obsselect):
     sdf = sdf.loc[tot.index]
     sdf = pd.DataFrame(np.where(sdf>0, "triangle-up", "triangle-down"), columns=ddf.columns)
 
-    ddf["Iter 0"] = 0
-    sdf["Iter 0"] = "circle"
-
-    colors = px.colors.sample_colorscale(palettes[palette], max(ddf.shape[1], len(reis)))
+    # one color per iteration; Jacobian k is computed at the parameters of iteration k-1 and gets its color
+    iters = sorted(set(reis) | {k - 1 for k in jcos})
+    colors = px.colors.sample_colorscale(palettes[palette], len(iters))
+    iter_color = dict(zip(iters, colors))
 
     fig = make_subplots(
         rows=1, cols=2, column_widths=[1, min(0.05*len(obsselect), 0.5)],
-        subplot_titles=("Observation Sensitivity", "Observation Values")
+        subplot_titles=("Sensitivity by Jacobian (colored by the iteration it was computed at)", "Observation Values")
     )
 
     # add parameter update plot
@@ -140,24 +140,24 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, obsselect):
         marker=dict(color="black"),
         showlegend=False,
     ), row=1, col=2)
-    for (k, df), c in zip(sorted(reis.items()), colors):
+    for k, df in sorted(reis.items()):
         fig.add_trace(go.Scatter(
             x=obsselect,
             y=df.set_index("obsname").loc[obsselect, "modelled"],
             mode="markers",
             name=f"Iter {k}",
-            marker=dict(color=c),
+            marker=dict(color=iter_color[k]),
             showlegend=False,
         ), row=1, col=2)
 
 
     # add sensitivity plot
-    for i, c in enumerate(sorted(ddf.columns, key=lambda c: int(c.split()[1]))):
+    for c in sorted(ddf.columns, key=lambda c: int(c.split()[1])):
         k = int(c.split()[1])
-        if k == 0:
+        if k - 1 == 0:
             parval = par.set_index("parname").loc[ddf.index, "parval0"]
         else:
-            parval = pars[k].set_index("parname").loc[ddf.index, "parval"] if k in pars else None
+            parval = pars[k - 1].set_index("parname").loc[ddf.index, "parval"] if k - 1 in pars else None
         fig.add_trace(go.Scatter(
             x=ddf.index,
             y=ddf[c],
@@ -165,7 +165,7 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, obsselect):
             mode="lines+markers",
             name=c,
             hovertemplate='Sen:%{y}; Par value:%{text}',
-            line=dict(color=colors[i]),
+            line=dict(color=iter_color[k - 1]),
             marker=dict(size=10, symbol=sdf[c])
         ))
     fig.update_layout(

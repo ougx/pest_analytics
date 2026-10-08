@@ -43,7 +43,7 @@ layout = html.Div([
     about(md),
     dmc.Group([
         dmc.Select(id=name+"npar", label="Number of Parameters:", data=["5", "10", "20", "30", "40", "50", "100"], value="40", style={"width": "150px"}),
-        dmc.Select(id=name+"iter", label="Iteration:", data=["1"], value="1", style={"width": "150px"}),
+        dmc.Select(id=name+"iter", label="Jacobian Iteration:", description=".jco.N, at iteration N-1 parameters", data=["1"], value="1", style={"width": "150px"}),
         dmc.Select(id=name+"highr", label="Highlight Limit:", data=["0.90","0.95","0.98", "0.99"], value="0.98", style={"width": "150px"}),
         dmc.Select(id=name+"palette", label="Color Scale:", data=colorscales, value=colorscales[0], style={"width": "150px"}),
         dmc.Switch(id=name+"invcmap", label="Inverse colormap", checked=True, style={"width": "150px"}),

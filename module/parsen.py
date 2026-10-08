@@ -7,6 +7,7 @@ from utils import parse_zip, isiterable
 import pandas as pd
 import numpy as np
 from plotly.subplots import make_subplots
+from pst import get_jco_rei
 from layout import update_groups, about
 
 name = __name__.lstrip("module.") + "-"
@@ -126,11 +127,11 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, parselect):
     for i, df0 in jcos.items():
         df = pd.merge(df0, obs, left_index=True, right_on="obsname", suffixes=(None, "_1"))
         df.set_index("obsname", inplace=True)
-        sdf[f"Iter {i}"] = (df["weight"].values[:, None] * df[parselect]).sum(axis=1)
+        sdf[f"Jacobian {i}"] = (df["weight"].values[:, None] * df[parselect]).sum(axis=1)
         if stype == "L1 Norm":
-            ddf[f"Iter {i}"] =  (df["weight"].values[:, None] * df[parselect] .abs()).sum(axis=1)
+            ddf[f"Jacobian {i}"] =  (df["weight"].values[:, None] * df[parselect] .abs()).sum(axis=1)
         else:
-            ddf[f"Iter {i}"] = ((df["weight"].values[:, None] * df[parselect])**2).sum(axis=1)
+            ddf[f"Jacobian {i}"] = ((df["weight"].values[:, None] * df[parselect])**2).sum(axis=1)
     sdf = pd.DataFrame(sdf, )
     ddf = pd.DataFrame(ddf, )
     if otype == "Obs Groups":
@@ -150,14 +151,13 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, parselect):
     for i, df in sorted(pars.items()):
         pp[f"Iter {i}"] = df.set_index("parname").loc[parselect, "parval"]
 
-    ddf["Iter 0"] = 0
-    sdf["Iter 0"] = "circle"
-
-    colors = px.colors.sample_colorscale(palettes[palette], ddf.shape[1])
+    # Jacobian k is computed at the parameters of iteration k-1, so it gets that iteration's color
+    colors = px.colors.sample_colorscale(palettes[palette], len(pp))
+    par_color = dict(zip(pp, colors))
 
     fig = make_subplots(
         rows=1, cols=2, column_widths=[1, 0.1*len(parselect)],
-        subplot_titles=("Parameter Sensitivity", "Parameter Values")
+        subplot_titles=("Sensitivity by Jacobian (colored by the iteration it was computed at)", "Parameter Values")
     )
 
     # add parameter update plot
@@ -172,11 +172,12 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, parselect):
         ), row=1, col=2)
 
     # add sensitivity plot
-    for i, c in enumerate(sorted(ddf.columns, key=lambda c: int(c.split()[1]))):
+    for c in sorted(ddf.columns, key=lambda c: int(c.split()[1])):
         k = int(c.split()[1])
         text = None
-        if otype=="Observations" and k in reis:
-            text = reis[k].set_index("obsname").loc[ddf.index, "modelled"].to_string(index=False, header=False).split("\n")
+        rei = get_jco_rei(reis, k)
+        if otype=="Observations" and rei is not None:
+            text = rei.set_index("obsname").loc[ddf.index, "modelled"].to_string(index=False, header=False).split("\n")
         fig.add_trace(go.Scatter(
             x=ddf.index,
             # x=obs.set_index("obsname").loc[ddf.index, ["obsval"]].to_string(index=True, header=False).split("\n"),
@@ -185,7 +186,7 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, parselect):
             mode="lines+markers",
             name=c,
             hovertemplate='Sen:%{y}; Modeled:%{text}',
-            line=dict(color=colors[i]),
+            line=dict(color=par_color.get(f"Iter {k-1}", colors[-1])),
             marker=dict(size=10, symbol=sdf[c])
         ))
     fig.update_layout(

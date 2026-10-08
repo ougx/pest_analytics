@@ -43,7 +43,7 @@ layout = html.Div([
     html.H3(fullname),
     about(md),
     dmc.Group([
-        dmc.Select(id=name+"iter", label="Iteration:", data=["1"], value="1", style={"width": "150px"}),
+        dmc.Select(id=name+"iter", label="Jacobian Iteration:", description=".jco.N, at iteration N-1 parameters", data=["1"], value="1", style={"width": "150px"}),
         dmc.Select(id=name+"svdtrunc", label="SVD Truncation:", data=["1e-4", "1e-5", "5e-6", "1e-6", "5e-7", "1e-7", "5e-8", "1e-8", "1e-9"], value="5e-7", style={"width": "150px"}),
         dmc.Select(id=name+"layout", label="Layout:", data=["Horizontal", "Vertical"], value="Vertical", style={"width": "150px"}),
         dmc.Button("Plot Identifiability", id=name+"update-plot", color="blue"),

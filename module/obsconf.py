@@ -60,7 +60,7 @@ layout = html.Div([
     html.H3(fullname),
     about(md),
     dmc.Group([
-        dmc.Select(id=name+"iter", label="Jacobian Iteration:", data=["1"], value="1", style={"width": "150px"}),
+        dmc.Select(id=name+"iter", label="Jacobian Iteration:", description=".jco.N with .rei.(N-1) residuals", data=["1"], value="1", style={"width": "150px"}),
         dmc.Select(id=name+"weight", label="Weighted by:", data=["weight"], value="weight", style={"width": "150px"}),
         dmc.Select(id=name+"grp", label="Obs Grouped by:", data=["obsgrp"], value="obsgrp", style={"width": "150px"}),
         dmc.Select(id=name+"plevel", label="Parameter Level:", data=["Parameters", "Par Groups"], value="Parameters", style={"width": "150px"}),
