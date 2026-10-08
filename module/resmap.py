@@ -24,6 +24,11 @@ md = dcc.Markdown('''
     * **RMSE** and **mean absolute residual**: size of the misfit regardless of sign.
     * **Change in RMSE since iteration 0**: negative (blue) where the calibration improved the fit.
 
+    Hovering a site also shows its share of the total measurement objective function: the site's
+    $\\sum (w_i r_i)^2$ divided by the $\\phi$ of all weighted observations of the iteration (without regularization,
+    and regardless of the group/year filters). With every group and year selected, the shares of all sites add up to
+    100% (less any weighted observations that have no site).
+
     Above the map, Moran's I measures whether neighbouring sites have similar values of the mapped statistic
     (8 nearest neighbours; p-value from 999 random permutations). A significant positive I for the mean residual means
     the bias is spatially clustered, which usually points to a zone, boundary or structural problem rather than noise.
@@ -161,11 +166,19 @@ def site_stats(rei, site_col, weight, groups=None, years=None):
         df = df[y.between(*years)]
     df = df[df[site_col].notna()]
     r, w = df.residual, df[weight]
-    g = pd.DataFrame(dict(r=r, wr=w * r, r2=r**2, ar=r.abs(), site=df[site_col].astype(str).str.lower()))
+    g = pd.DataFrame(dict(r=r, wr=w * r, r2=r**2, ar=r.abs(), phi=(w * r)**2, site=df[site_col].astype(str).str.lower()))
     stats = g.groupby("site").agg(n=("r", "size"), mean=("r", "mean"), wmean=("wr", "mean"),
-                                  r2=("r2", "mean"), mae=("ar", "mean"))
+                                  r2=("r2", "mean"), mae=("ar", "mean"), phi=("phi", "sum"))
     stats["rmse"] = np.sqrt(stats.pop("r2"))
+    total = total_phi(rei, weight)
+    stats["phi_share"] = stats.phi / total if total > 0 else np.nan
     return stats
+
+
+def total_phi(rei, weight):
+    """measurement objective function of the iteration: sum of (w r)^2 without regularization"""
+    df = rei[(rei[weight] > 0) & ~rei.obsgrp.astype(str).str.startswith("regul")]
+    return float(((df[weight] * df.residual)**2).sum())
 
 
 @callback(
@@ -212,7 +225,8 @@ def plot(clicks, basemap, opacity, layer_on, data, layers, iiter, site_col, weig
         stats["drmse"] = stats.rmse - base.rmse.reindex(stats.index)
     located = stats.join(sites.set_index("site"), how="inner")
     unlocated = len(stats) - len(located)
-    note = f"{len(located)} sites mapped" + (f"; {unlocated} {site_col} values have no coordinates in site.csv" if unlocated else "")
+    note = (f"{len(located)} sites mapped, together {located.phi_share.sum():.1%} of the total measurement φ "
+            f"of iteration {iiter}" + (f"; {unlocated} {site_col} values have no coordinates in site.csv" if unlocated else ""))
     if located.empty:
         return message_figure(f"None of the {site_col} values match the site column of site.csv."), note
 
@@ -248,10 +262,13 @@ def map_figure(located, stat, size_by, basemap, opacity, layers, iiter, site_col
         s = np.sqrt((located.n if size_by == "Observations" else located.rmse).astype(float))
         size = 7 + 18 * (s - s.min()) / ((s.max() - s.min()) or 1)
 
-    extra = [c for c in located.columns if c not in ("n", "mean", "wmean", "mae", "rmse", "drmse", "lat", "lon")
+    located = located.copy()
+    located["phi_text"] = [f"{s:.2%} (φ = {p:.4g})" for s, p in zip(located.phi_share, located.phi)]
+    extra = [c for c in located.columns
+             if c not in ("n", "mean", "wmean", "mae", "rmse", "drmse", "lat", "lon", "phi", "phi_share", "phi_text")
              and located[c].notna().any()]
-    shown = ["n", "mean", "wmean", "rmse", "mae"] + (["drmse"] if "drmse" in located else []) + extra
-    labels = {"n": "observations", **{k: in_sentence(v) for k, v in STATS.items()}}
+    shown = ["n", "phi_text", "mean", "wmean", "rmse", "mae"] + (["drmse"] if "drmse" in located else []) + extra
+    labels = {"n": "observations", "phi_text": "share of total φ", **{k: in_sentence(v) for k, v in STATS.items()}}
     hover = "<b>%{customdata[0]}</b><br>" + "<br>".join(
         f"{labels.get(c, c)}: %{{customdata[{i + 1}]}}" for i, c in enumerate(shown)) + "<extra></extra>"
     customdata = np.column_stack([located.index.astype(str)] + [

@@ -119,3 +119,30 @@ def test_map_csv_has_coordinates(mapped_data):
     fig, _ = _plot(data)
     df = figure_to_frame(json.loads(pio.to_json(fig)))
     assert {"lat", "lon"} <= set(df.columns) and len(df) == n_sites
+
+
+def test_site_share_of_total_phi():
+    from module.resmap import site_stats, total_phi
+    rei = pd.DataFrame(dict(residual=[1.0, -3.0, 2.0, 5.0, 4.0], weight=[1.0, 2.0, 1.0, 0.0, 1.0],
+                            obsgrp=["head", "head", "flow", "head", "regul1"],
+                            grpSite=["A", "A", "B", "B", "R"]))
+    assert total_phi(rei, "weight") == 1 + 36 + 4                  # zero weight and regularization excluded
+    s = site_stats(rei, "grpSite", "weight")
+    assert s.loc["a", "phi"] == 37 and np.isclose(s.loc["a", "phi_share"], 37 / 41)
+    # filtering groups changes which observations a site sums, not the total it is compared with
+    assert np.isclose(site_stats(rei, "grpSite", "weight", groups=["flow"]).loc["b", "phi_share"], 4 / 41)
+
+
+def test_phi_share_in_hover_and_note(mapped_data):
+    import utils
+    from module.resmap import total_phi
+    data, n_sites = mapped_data
+    fig, note = _plot(data)
+    trace = fig.data[0]
+    assert "share of total φ" in trace.hovertemplate
+    shares = [float(row[2].split("%")[0]) for row in trace.customdata]
+    rei = utils.parse_zip(data, False, True, False)[4][6]
+    weighted = rei[(rei.weight > 0) & ~rei.obsgrp.str.startswith("regul")]
+    unsited = ((weighted.weight * weighted.residual)**2)[weighted.grpSite.isna()].sum() / total_phi(rei, "weight")
+    assert np.isclose(sum(shares) / 100 + unsited, 1, atol=0.01)   # every bit of phi is accounted for
+    assert "of the total measurement φ of iteration 6" in note[0]
