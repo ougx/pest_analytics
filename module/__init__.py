@@ -10,6 +10,7 @@ from . import (
     obssim,
     obsconf,
     resinfl,
+    resmap,
 )
 
 # navigation sections, in display order
@@ -21,6 +22,7 @@ sections = {
         "phiupdate":phiupdate,
         "scatterplot":scatterplot,
         "tsplot":tsplot,
+        "resmap":resmap,
         "resinfl":resinfl,
     },
     "Parameters": {

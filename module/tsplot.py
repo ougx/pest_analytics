@@ -93,9 +93,11 @@ def upload_pest(data, grp):
 @callback(
     Output(name+"site", "value"),
     Input(name+"site", "data"),
+    State(name+"site", "value"),
 )
-def upload_pest(data):
-    return data[0]
+def upload_pest(data, site):
+    # keep a site chosen elsewhere (e.g. clicked on the Residual Map) if it is still an option
+    return site if site in data else data[0]
 
 @callback(
     Output(name+"plot", "figure"),

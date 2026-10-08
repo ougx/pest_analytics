@@ -48,7 +48,7 @@ def figure_to_frame(fig):
                 df["details"] = [str(c).replace("<br>", "; ") for c in _array(link["customdata"])]
             frames.append(df)
         else:
-            cols = {k: _array(t[k]) for k in ("x", "y", "z", "text", "customdata")
+            cols = {k: _array(t[k]) for k in ("x", "y", "z", "lat", "lon", "text", "customdata")
                     if t.get(k) is not None and not isinstance(t.get(k), str)}
             if not cols:
                 continue
