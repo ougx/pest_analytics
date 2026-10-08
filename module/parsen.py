@@ -147,7 +147,7 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, parselect):
     sdf = pd.DataFrame(np.where(sdf>0, "triangle-up", "triangle-down"), columns=ddf.columns)
 
     pp = {"Iter 0": par.set_index("parname").loc[parselect, "parval0"]}
-    for i, df in pars.items():
+    for i, df in sorted(pars.items()):
         pp[f"Iter {i}"] = df.set_index("parname").loc[parselect, "parval"]
 
     ddf["Iter 0"] = 0
@@ -172,15 +172,16 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, parselect):
         ), row=1, col=2)
 
     # add sensitivity plot
-    for i, c in enumerate(ddf.sort_index(axis=1).columns):
-        if otype=="Observations":
-            res = reis[i].set_index("obsname").loc[ddf.index]
-            res["val"] = res["modelled"] #* obs.set_index("name").loc[ddf.index]
+    for i, c in enumerate(sorted(ddf.columns, key=lambda c: int(c.split()[1]))):
+        k = int(c.split()[1])
+        text = None
+        if otype=="Observations" and k in reis:
+            text = reis[k].set_index("obsname").loc[ddf.index, "modelled"].to_string(index=False, header=False).split("\n")
         fig.add_trace(go.Scatter(
             x=ddf.index,
             # x=obs.set_index("obsname").loc[ddf.index, ["obsval"]].to_string(index=True, header=False).split("\n"),
             y=ddf[c],
-            text=None if otype!="Observations" else res["val"].to_string(index=False, header=False).split("\n"),
+            text=text,
             mode="lines+markers",
             name=c,
             hovertemplate='Sen:%{y}; Modeled:%{text}',

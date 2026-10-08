@@ -127,7 +127,7 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, obsselect):
     colors = px.colors.sample_colorscale(palettes[palette], max(ddf.shape[1], len(reis)))
 
     fig = make_subplots(
-        rows=1, cols=2, column_widths=[1, 0.05*len(obsselect)],
+        rows=1, cols=2, column_widths=[1, min(0.05*len(obsselect), 0.5)],
         subplot_titles=("Observation Sensitivity", "Observation Values")
     )
 
@@ -140,32 +140,31 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, obsselect):
         marker=dict(color="black"),
         showlegend=False,
     ), row=1, col=2)
-    for i in range(len(reis)):
-        c = colors[i]
-        df = reis[i]
+    for (k, df), c in zip(sorted(reis.items()), colors):
         fig.add_trace(go.Scatter(
             x=obsselect,
             y=df.set_index("obsname").loc[obsselect, "modelled"],
             mode="markers",
-            name=i,
+            name=f"Iter {k}",
             marker=dict(color=c),
             showlegend=False,
         ), row=1, col=2)
 
 
     # add sensitivity plot
-    for i, c in enumerate(ddf.sort_index(axis=1).columns):
-        if i == 0:
+    for i, c in enumerate(sorted(ddf.columns, key=lambda c: int(c.split()[1]))):
+        k = int(c.split()[1])
+        if k == 0:
             parval = par.set_index("parname").loc[ddf.index, "parval0"]
         else:
-            parval = pars[i].set_index("parname").loc[ddf.index, "parval"]
+            parval = pars[k].set_index("parname").loc[ddf.index, "parval"] if k in pars else None
         fig.add_trace(go.Scatter(
             x=ddf.index,
             y=ddf[c],
-            text=parval.to_string(index=False, header=False).split("\n"),
+            text=None if parval is None else parval.to_string(index=False, header=False).split("\n"),
             mode="lines+markers",
             name=c,
-            hovertemplate='Sen:%{y}; Modeled:%{text}',
+            hovertemplate='Sen:%{y}; Par value:%{text}',
             line=dict(color=colors[i]),
             marker=dict(size=10, symbol=sdf[c])
         ))

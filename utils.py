@@ -1,6 +1,7 @@
 import base64
 import io
 import os
+import re
 import zipfile
 import pandas as pd
 import numpy as np
@@ -133,6 +134,32 @@ def parse_zip(data, loadpar=True, loadrei=False, loadjco=False):
             return read_pest_zip(io.BytesIO(decoded), loadpar, loadrei, loadjco)
     return None, None, None, None, None, None
 
+def lower_group_columns(df):
+    """lower-case the grp* columns of obs.csv/par.csv; numeric groups become strings"""
+    for c in df.columns:
+        if c.lower().startswith("grp"):
+            df[c] = df[c].where(df[c].isna(), df[c].astype(str).str.lower())
+
+
+def merge_rei_obs(rei, obs):
+    """
+    Attach observation data to residuals. Prior-information (regularization) rows are not
+    in the observation data, so their group and weight are taken from the .rei file and
+    their grp* columns are set to the group name.
+    """
+    df = pd.merge(rei[["obsname", "measured", "modelled", "residual"]], obs, on="obsname",
+                  how="left", suffixes=(None, "_1"))
+    prior = ~rei["obsname"].isin(obs["obsname"]).values
+    if prior.any() and {"obsgrp", "weight"} <= set(rei.columns):
+        df.loc[prior, "obsgrp"] = rei["obsgrp"].values[prior]
+        df.loc[prior, "weight"] = rei["weight"].values[prior]
+        df.loc[prior, "obsval"] = rei["measured"].values[prior]
+        for c in obs.columns:
+            if c.lower().startswith("grp"):
+                df.loc[prior, c] = rei["obsgrp"].values[prior]
+    return df
+
+
 def read_pest_zip(zip, loadpar=True, loadrei=False, loadjco=False):
     par = None; pa = None
     obs = None; ob = None
@@ -147,23 +174,18 @@ def read_pest_zip(zip, loadpar=True, loadrei=False, loadjco=False):
                 with z.open(name) as f:
                     ob = pd.read_csv(f, )
                     ob["obsname"] = ob["obsname"].str.lower()
-                    for c in ob.columns:
-                        if c.lower().startswith("grp"):
-                            ob[c] = ob[c].str.lower()
+                    lower_group_columns(ob)
             if name.endswith('par.csv'):
                 with z.open(name) as f:
                     pa = pd.read_csv(f, )
                     pa["parname"] = pa["parname"].str.lower()
-                    for c in par.columns:
-                        if c.lower().startswith("grp"):
-                            pa[c] = pa[c].str.lower()
-            if name[-1] in "0123456789":
-                iiter = int(name[-1])
-                fileext = name[-5:-2]
+                    lower_group_columns(pa)
+            # e.g. case.jco.12 -> ("jco", 12); case.pst -> ("pst", 0)
+            m = re.search(r"\.([A-Za-z]+)\.(\d+)$", name)
+            if m:
+                fileext, iiter = m.group(1).lower(), int(m.group(2))
             else:
-                iiter = 0
-                fileext = name[-3:]
-            # print(name, iiter, fileext)
+                fileext, iiter = os.path.splitext(name)[1].lstrip(".").lower(), 0
             if fileext == "par" and loadpar:
                 with z.open(name) as f:
                     df = read_par(f)
@@ -176,12 +198,12 @@ def read_pest_zip(zip, loadpar=True, loadrei=False, loadjco=False):
                 with z.open(name) as f:
                     df = read_rei(f)
                 reis[iiter] = df
-            if fileext == ".hp" and loadrei:
+            if fileext == "hp" and loadrei:
                 with z.open(name) as f:
                     fbuf = f.read()
                 hp = hpfile(fbuf)
             if fileext == "pst":
-                pst = name.rstrip(".pst")
+                pst = os.path.splitext(os.path.basename(name))[0]
                 with z.open(name) as f:
                     par = read_par_in_pst(f)
                 with z.open(name) as f:
@@ -200,7 +222,7 @@ def read_pest_zip(zip, loadpar=True, loadrei=False, loadjco=False):
         obs = pd.merge(obs, ob, on='obsname', how="left", suffixes=(None, "_1"))
     if reis:
         for i, df in reis.items():
-            reis[i] = pd.merge(df[["obsname", "measured", "modelled", "residual"]], obs, on="obsname", suffixes=(None, "_1"))
+            reis[i] = merge_rei_obs(df, obs)
     if pars:
         for i, df in pars.items():
             pars[i] = pd.merge(df, par.drop(["scale", "offset"], axis=1), on="parname", suffixes=(None, "_1"))

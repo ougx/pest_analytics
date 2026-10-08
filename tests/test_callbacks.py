@@ -129,43 +129,43 @@ def test_parcor_inverted_colorscale(mock_pz):
 
 def test_parsen_no_clicks_returns_scatter():
     from module.parsen import plot
-    fig = plot(None, {}, "L2 Norm", "Observations", "10", "Jet", [_FIRST_PAR])
+    fig = plot(None, {}, "L2 Norm", "Observations", "obsgrp", "10", "Jet", [_FIRST_PAR])
     assert isinstance(fig, go.Figure)
 
 def test_parsen_no_data_returns_scatter():
     from module.parsen import plot
-    fig = plot(1, None, "L2 Norm", "Observations", "10", "Jet", [_FIRST_PAR])
+    fig = plot(1, None, "L2 Norm", "Observations", "obsgrp", "10", "Jet", [_FIRST_PAR])
     assert isinstance(fig, go.Figure)
 
 def test_parsen_no_param_selected_returns_scatter():
     from module.parsen import plot
-    fig = plot(1, {"pestpath": "dummy"}, "L2 Norm", "Observations", "10", "Jet", [])
+    fig = plot(1, {"pestpath": "dummy"}, "L2 Norm", "Observations", "obsgrp", "10", "Jet", [])
     assert isinstance(fig, go.Figure)
 
 @patch("module.parsen.parse_zip", return_value=GOOD_RESULT)
 def test_parsen_l1_norm(mock_pz):
     from module.parsen import plot
-    fig = plot(1, {"pestpath": "dummy"}, "L1 Norm", "Observations", "10", "Jet", [_FIRST_PAR])
+    fig = plot(1, {"pestpath": "dummy"}, "L1 Norm", "Observations", "obsgrp", "10", "Jet", [_FIRST_PAR])
     assert isinstance(fig, go.Figure)
 
 @patch("module.parsen.parse_zip", return_value=GOOD_RESULT)
 def test_parsen_l2_norm(mock_pz):
     from module.parsen import plot
-    fig = plot(1, {"pestpath": "dummy"}, "L2 Norm", "Observations", "10", "Jet", [_FIRST_PAR])
+    fig = plot(1, {"pestpath": "dummy"}, "L2 Norm", "Observations", "obsgrp", "10", "Jet", [_FIRST_PAR])
     assert isinstance(fig, go.Figure)
 
 @patch("module.parsen.parse_zip", return_value=GOOD_RESULT)
 def test_parsen_multiple_params(mock_pz):
     from module.parsen import plot
     two_pars = _par[_par.partrans.isin(["log", "none"])]["parname"].iloc[:2].tolist()
-    fig = plot(1, {"pestpath": "dummy"}, "L2 Norm", "Observations", "10", "Jet", two_pars)
+    fig = plot(1, {"pestpath": "dummy"}, "L2 Norm", "Observations", "obsgrp", "10", "Jet", two_pars)
     assert isinstance(fig, go.Figure)
     assert len(fig.data) > 0
 
 @patch("module.parsen.parse_zip", return_value=GOOD_RESULT)
 def test_parsen_single_string_param(mock_pz):
     from module.parsen import plot
-    fig = plot(1, {"pestpath": "dummy"}, "L2 Norm", "Observations", "10", "Jet", _FIRST_PAR)
+    fig = plot(1, {"pestpath": "dummy"}, "L2 Norm", "Observations", "obsgrp", "10", "Jet", _FIRST_PAR)
     assert isinstance(fig, go.Figure)
 
 
@@ -449,3 +449,59 @@ def test_obsconf_focus_options(mock_pz):
     assert names == set(_obs[_obs.weight > 0]["obsname"])
     sites = update_focus_options("grpSite", {"pestpath": "dummy"}, "weight")
     assert sites == sorted(sites) and len(sites) > 1
+
+
+# ---------------------------------------------------------------------------
+# runs without a .hp file (no iteration-0 residuals)
+# ---------------------------------------------------------------------------
+
+NO_HP_RESULT = (_pst, _par, _obs, _pars, {k: v for k, v in _reis.items() if k != 0}, _jcos)
+_FIRST_SITE = str(_obs["grpSite"].iloc[0])
+
+@patch("module.scatterplot.parse_zip", return_value=NO_HP_RESULT)
+def test_scatterplot_without_hp(mock_pz):
+    from module.scatterplot import plot
+    fig = plot(1, {"pestpath": "dummy"}, "grpSite", _FIRST_SITE, False, "Greyout", "Jet", False)
+    assert [t.name for t in fig.data if t.type == "scatter"][1:] == [f"Iter {i}" for i in range(1, _N_ITER + 1)]
+
+@patch("module.tsplot.parse_zip", return_value=NO_HP_RESULT)
+def test_tsplot_without_hp(mock_pz):
+    from module.tsplot import plot
+    fig = plot(1, {"pestpath": "dummy"}, "grpSite", _FIRST_SITE, "Greyout", "Lines+Markers", "Jet", False)
+    assert len([t for t in fig.data if t.type == "scatter"]) == _N_ITER + 1
+
+def test_tsplot_without_time_column():
+    from module.tsplot import plot
+    no_time = (_pst, _par, _obs.drop(columns="time"), _pars, _reis, _jcos)
+    with patch("module.tsplot.parse_zip", return_value=no_time):
+        fig = plot(1, {"pestpath": "dummy"}, "grpSite", _FIRST_SITE, "Greyout", "Lines+Markers", "Jet", False)
+    assert "time" in fig.layout.title.text
+
+@patch("module.parsen.parse_zip", return_value=NO_HP_RESULT)
+def test_parsen_without_hp(mock_pz):
+    from module.parsen import plot
+    fig = plot(1, {"pestpath": "dummy"}, "L2 Norm", "Observations", "obsgrp", "10", "Jet", [_FIRST_PAR])
+    names = [t.name for t in fig.data if t.mode == "lines+markers"]
+    assert names == [f"Iter {i}" for i in range(0, _N_ITER + 1)]
+
+@patch("module.obssen.parse_zip", return_value=NO_HP_RESULT)
+def test_obssen_without_hp_and_wide_group(mock_pz):
+    from module.obssen import plot
+    fig = plot(1, {"pestpath": "dummy"}, "L2 Norm", "Obs Groups", "obsgrp", "10", "Jet", [_FIRST_OBSGRP])
+    assert fig.layout.xaxis2.domain[1] - fig.layout.xaxis2.domain[0] < 0.5   # side panel capped
+    names = [t.name for t in fig.data if t.mode == "lines+markers"]
+    assert names == sorted(names, key=lambda c: int(c.split()[1]))
+
+def test_phiupdate_flags_unreasonable_residuals():
+    from module.phiupdate import upload_pest
+    bad = {k: v.copy() for k, v in _reis.items()}
+    bad[3]["residual"] = 1e30
+    with patch("module.phiupdate.parse_zip", return_value=(_pst, _par, _obs, _pars, bad, _jcos)):
+        fig = upload_pest({"pestpath": "dummy"}, "obsgrp", "weight")
+    assert "rei.3" in fig.layout.title.text
+
+@patch("module.phiupdate.parse_zip", return_value=GOOD_RESULT)
+def test_phiupdate_includes_regularization_groups(mock_pz):
+    from module.phiupdate import upload_pest
+    fig = upload_pest({"pestpath": "dummy"}, "obsgrp", "weight")
+    assert any(str(t.name).startswith("regul") for t in fig.data)

@@ -116,8 +116,10 @@ def plot(clicks, data, grp, site, zeroweight, plottype, palette, invcmap):
     pst, par, obs, pars, reis, jcos = parse_zip(data, False, True, False)
     if obs is None:
         return px.scatter(title="No .pst file found in zip file.")
-    if reis is {}:
+    if not reis:
         return px.scatter(title="No .rei file found in zip file.")
+    if "time" not in obs.columns:
+        return px.scatter(title="No 'time' column found. Add obs.csv with obsname and time columns to the zip file.")
 
 
     colors = px.colors.sample_colorscale(palettes[palette], len(reis))
@@ -147,7 +149,7 @@ def plot(clicks, data, grp, site, zeroweight, plottype, palette, invcmap):
     ))
 
     sims = {}
-    for i, df in reis.items():
+    for (i, df), color in zip(sorted(reis.items()), colors):
         #print(df)
         ts = df[df[grp]==site]
         if zeroweight=="Hide":
@@ -159,8 +161,8 @@ def plot(clicks, data, grp, site, zeroweight, plottype, palette, invcmap):
             mode=plottype.lower(),
             name="Iter " + str(i),
             hovertemplate='%{text}: %{y}',
-            line=dict(color=colors[i]),
-            marker=dict(color=[colors[i] if w>0 else "grey" for w in ts["weight"]] if zeroweight=="Greyout" else colors[i])
+            line=dict(color=color),
+            marker=dict(color=[color if w>0 else "grey" for w in ts["weight"]] if zeroweight=="Greyout" else color)
         ))
         sims["Iter " + str(i)] = [
             ((ts["residual"]**2).sum()/len(ts))**0.5,

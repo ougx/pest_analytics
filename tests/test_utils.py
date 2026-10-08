@@ -292,3 +292,66 @@ def test_parse_zip_real_loads_reis():
     # Iteration 0 comes from .hp file; iterations 1–6 from .rei files
     assert 0 in reis
     assert len(reis) == 7
+
+
+# ---------------------------------------------------------------------------
+# read_pest_zip: file naming and obs.csv/par.csv handling
+# ---------------------------------------------------------------------------
+
+def _rewrite_zip(rename=None, extra=None, obs_csv=None):
+    """Copy the example zip with renamed members, extra files and/or a modified obs.csv."""
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(TESTDATA_ZIP) as src, zipfile.ZipFile(buf, "w") as dst:
+        for name, data in (extra or {}).items():
+            dst.writestr(name, data)
+        for n in src.namelist():
+            data = src.read(n)
+            if n == "obs.csv" and obs_csv:
+                data = obs_csv(pd.read_csv(io.BytesIO(data))).to_csv(index=False).encode()
+            dst.writestr(rename(n) if rename else n, data)
+    buf.seek(0)
+    return buf
+
+def _shift_iterations(n, by=9):
+    for ext in ("jco", "rei", "par"):
+        if f".{ext}." in n:
+            base, k = n.rsplit(".", 1)
+            return f"{base}.{int(k) + by}"
+    return n
+
+def test_read_pest_zip_multi_digit_iterations():
+    from utils import read_pest_zip
+    pst, par, obs, pars, reis, jcos = read_pest_zip(_rewrite_zip(rename=_shift_iterations), True, True, True)
+    assert sorted(jcos) == list(range(10, 16))
+    assert sorted(pars) == list(range(10, 16))
+    assert sorted(reis) == [0] + list(range(10, 16))
+
+def test_read_pest_zip_pst_name_keeps_trailing_letters():
+    from utils import read_pest_zip
+    rename = lambda n: "sub/model_test.pst" if n.endswith(".pst") else n
+    assert read_pest_zip(_rewrite_zip(rename=rename))[0] == "model_test"
+
+def test_read_pest_zip_numeric_obs_group_column():
+    from utils import read_pest_zip
+    def add_layer(ob):
+        ob["grpLayer"] = 3
+        return ob
+    obs = read_pest_zip(_rewrite_zip(obs_csv=add_layer))[2]
+    assert set(obs.grpLayer.dropna()) == {"3"}
+
+def test_read_pest_zip_par_csv_before_pst():
+    from utils import read_pest_zip
+    extra = {"par.csv": "parname,grpZone\nKDCR01,North\n"}
+    par = read_pest_zip(_rewrite_zip(extra=extra))[1]
+    assert par.set_index("parname").loc["kdcr01", "grpZone"] == "north"
+
+def test_read_pest_zip_keeps_prior_information_rows():
+    from utils import read_pest_zip
+    pst, par, obs, pars, reis, jcos = read_pest_zip(str(TESTDATA_ZIP), False, True, False)
+    rei = reis[6]
+    prior = rei[~rei.obsname.isin(obs.obsname)]
+    assert len(prior) == 70
+    assert prior.obsgrp.str.startswith("regul").all()
+    assert (prior.grpType == prior.obsgrp).all()
+    assert prior.weight.notna().all()

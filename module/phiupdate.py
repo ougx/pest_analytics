@@ -59,9 +59,9 @@ def upload_pest(data, grp, weight):
             for i, df in reis.items():
                 #print(df)
                 df = df[df[weight]>0].copy()
-                if (not isinstance(df.residual.iloc[0], float or int)) or any(df.residual.abs()>1e20):
-                    go.Figure(layout=dict(
-                        title=f"Unreasonable residuals identified in Iteration {i}. Please check you {pst}.rei.3 file",
+                if not pd.api.types.is_numeric_dtype(df.residual) or (df.residual.abs() > 1e20).any():
+                    return go.Figure(layout=dict(
+                        title=f"Unreasonable residuals identified in Iteration {i}. Please check your {pst}.rei.{i} file",
                         height=650,)
                     )
                 df["phi"] = (df[weight] * df.residual)**2
@@ -77,7 +77,7 @@ def upload_pest(data, grp, weight):
 
             fig = make_subplots(specs=[[{"secondary_y": True}]])
             for g, df in phi.groupby(grp):
-                df["pct"] = (df.phi/phi_ter_no_regul.phi.values*100).round(1)
+                df["pct"] = (df.phi / df.Iteration.map(phi_ter_no_regul.set_index("Iteration").phi) * 100).round(1)
                 fig.add_trace(go.Bar(
                     x="Iter" + df.Iteration.astype(str),
                     y=df.phi,

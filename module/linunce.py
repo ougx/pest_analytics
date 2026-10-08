@@ -128,9 +128,9 @@ def plot(clicks, data, iiter, palette, invcmap, xscale, yscale, ): # obsgrp
     pst, par, obs, pars, reis, jcos = parse_zip(data, False, True, True)
     if obs is None:
         return px.scatter(title="No .pst file found in zip file.")
-    if jcos is {}:
+    if not jcos:
         return px.scatter(title="No .jco file found in zip file.")
-    if reis is {}:
+    if not reis:
         return px.scatter(title="No .rei file found in zip file.")
 
     jco0 = jcos[int(iiter)]

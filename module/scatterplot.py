@@ -109,7 +109,7 @@ def plot(clicks, data, grp, site, as_residual, zeroweight, palette, invcmap):
     pst, par, obs, pars, reis, jcos = parse_zip(data, False, True, False)
     if obs is None:
         return px.scatter(title="No .pst file found in zip file.")
-    if reis is {}:
+    if not reis:
         return px.scatter(title="No .rei file found in zip file.")
 
 
@@ -138,7 +138,7 @@ def plot(clicks, data, grp, site, as_residual, zeroweight, palette, invcmap):
     ), row=1, col=1)
 
     sims = {}
-    for i, df in reis.items():
+    for (i, df), color in zip(sorted(reis.items()), colors):
         #print(df)
         ts = df[df[grp]==site]
         if zeroweight=="Hide":
@@ -151,7 +151,7 @@ def plot(clicks, data, grp, site, as_residual, zeroweight, palette, invcmap):
             mode="markers",
             name="Iter " + str(i),
             hovertemplate='%{text}: %{y}',
-            marker=dict(color=[colors[i] if w>0 else "grey" for w in ts["weight"]] if zeroweight=="Greyout" else colors[i])
+            marker=dict(color=[color if w>0 else "grey" for w in ts["weight"]] if zeroweight=="Greyout" else color)
         ), row=1, col=1)
         sims["Iter " + str(i)] = [
             ((ts["residual"]**2).sum()/len(ts))**0.5,

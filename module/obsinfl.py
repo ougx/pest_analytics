@@ -56,7 +56,7 @@ def upload_pest(data):
     if data is None or data == {}:
         return no_update
     pst, par, obs, pars, jcos, reis = parse_zip(data, True, False, False)
-    if pars is {}:
+    if not pars:
         return no_update
     else:
         return [str(i) for i in pars.keys()]
@@ -78,7 +78,7 @@ def plot(clicks, data, iiter, svdtrunc, layout):
     pst, par, obs, pars, reis, jcos = parse_zip(data, False, False, True)
     if obs is None:
         return px.scatter(title="No .pst file found in zip file.")
-    if jcos is {}:
+    if not jcos:
         return px.scatter(title="No .jco file found in zip file.")
 
     csplimit = 1e-10

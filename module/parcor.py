@@ -80,7 +80,7 @@ def plot(clicks, data, npar, iiter, highr, palette, invcmap):
     pst, par, obs, pars, reis, jcos = parse_zip(data, False, False, True)
     if obs is None:
         return px.scatter(title="No .pst file found in zip file.")
-    if jcos is {}:
+    if not jcos:
         return px.scatter(title="No .jco file found in zip file.")
 
     csplimit = 1e-10

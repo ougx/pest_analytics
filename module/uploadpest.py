@@ -52,7 +52,6 @@ layout = html.Div([
     State("upload-pest", "filename"),
     State("upload-pest", "contents"),
     State("pest-path", "value"),
-    prevent_initial_callback=False,
 )
 def update_pest_data(nclick, filename, contents, pestpath):
     if nclick:

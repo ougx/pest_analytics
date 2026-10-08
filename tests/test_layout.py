@@ -38,10 +38,10 @@ def test_update_groups_includes_obsgrp(mock_pz):
     assert "obsgrp" in cols
 
 @patch("layout.parse_zip", return_value=FULL_RESULT)
-def test_update_groups_no_extra_grp_cols_in_real_data(mock_pz):
-    # The example zip has no obs.csv, so only the 'obsgrp' column from PST is present
+def test_update_groups_includes_obs_csv_grp_cols(mock_pz):
+    # The example zip's obs.csv adds the grpSite and grpType columns
     cols, val = update_groups({"pestpath": "dummy"})
-    assert cols == ["obsgrp"]
+    assert cols == ["obsgrp", "grpSite", "grpType"]
 
 @patch("layout.parse_zip", return_value=FULL_RESULT)
 def test_update_groups_default_value_obsgrp(mock_pz):
