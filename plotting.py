@@ -125,3 +125,27 @@ def residual_stats(ts, weight="weight"):
     with np.errstate(invalid="ignore", divide="ignore"):
         r2 = np.corrcoef(ts["measured"], ts["modelled"])[0, 1] ** 2 if len(ts) > 1 else np.nan
     return [np.sqrt((r**2).mean()), r2, r.abs().mean(), r.mean(), r.min(), r.max()]
+
+
+def stats_table(stats):
+    """
+    Table trace of fit statistics: stats is {column name (e.g. "Iter 3"): residual_stats(...)}.
+    """
+    sims = pd.DataFrame(stats)
+    sims.index = stat_names
+    return go.Table(
+        header=dict(
+            values=["Statistics<br>(weight > 0)"] + list(sims.columns),
+            fill_color='royalblue',
+            line_color='darkslategray',
+            align="center",
+            font=dict(size=12, color="white", weight="bold"),
+        ),
+        cells=dict(
+            # first column: statistic names; then one column per iteration
+            values=[l.split() for l in sims.T.to_string(index=False).splitlines()],
+            fill_color=['paleturquoise'] + ['white'] * (sims.shape[1]),
+            line_color='darkslategray',
+            align="center"
+        )
+    )

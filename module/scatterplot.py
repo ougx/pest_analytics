@@ -2,7 +2,7 @@ from dash import html, dcc, Input, Output, State, callback, no_update
 import dash_mantine_components as dmc
 import plotly.graph_objects as go
 import plotly.express as px
-from plotting import palettes, residual_stats, stat_names, message_figure, iteration_colors, select_iterations
+from plotting import stats_table, palettes, residual_stats, message_figure, iteration_colors, select_iterations
 import pandas as pd
 from utils import parse_zip, isiterable
 from pst import get_obssim, get_obscor
@@ -183,27 +183,7 @@ def plot(clicks, data, grp, site, as_residual, zeroweight, palette, invcmap, hov
         ), row=1, col=1)
         sims["Iter " + str(i)] = residual_stats(ts, weight)
 
-    sims = pd.DataFrame(sims)
-    sims.index = stat_names
-    # Add table
-    fig.add_trace(
-        go.Table(
-            header=dict(
-                values=["Statistics<br>(weight > 0)"] +list(sims.columns),
-                fill_color='royalblue',
-                line_color='darkslategray',
-                align="center",
-                font=dict(size=12, color="white", weight="bold"),
-            ),
-            cells=dict(
-                values=[l.split() for l in sims.T.to_string(index=False).splitlines()],
-                fill_color=['paleturquoise'] +  ['white']*(sims.shape[1]),
-                line_color='darkslategray',
-                align="center"
-            )
-        ),
-        row=1, col=2
-    )
+    fig.add_trace(stats_table(sims), row=1, col=2)
     fig.update_layout(
         height=700,
         xaxis_title="Observed Values",

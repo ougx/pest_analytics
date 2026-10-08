@@ -562,6 +562,15 @@ def test_residual_stats_excludes_zero_weight():
     assert rmin == -0.5 and rmax == 1.0
     assert all(np.isnan(residual_stats(ts[ts.weight == 0])))
 
+def test_stats_table_layout():
+    from plotting import stats_table, stat_names
+    table = stats_table({"Iter 1": [1.0, 0.5, 0.8, 0.1, -2.0, 3.0], "Iter 2": [0.5, 0.9, 0.4, 0.0, -1.0, 1.0]})
+    assert list(table.header.values) == ["Statistics<br>(weight > 0)", "Iter 1", "Iter 2"]
+    names, it1, it2 = [list(c) for c in table.cells.values]
+    assert names == stat_names
+    assert [float(v) for v in it1] == [1.0, 0.5, 0.8, 0.1, -2.0, 3.0]
+    assert [float(v) for v in it2] == [0.5, 0.9, 0.4, 0.0, -1.0, 1.0]
+
 @pytest.mark.parametrize("module", ["scatterplot", "tsplot"])
 def test_stats_ignore_zero_weight_display_option(module):
     import importlib
