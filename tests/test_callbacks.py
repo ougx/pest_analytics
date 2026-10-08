@@ -505,3 +505,41 @@ def test_phiupdate_includes_regularization_groups(mock_pz):
     from module.phiupdate import upload_pest
     fig = upload_pest({"pestpath": "dummy"}, "obsgrp", "weight")
     assert any(str(t.name).startswith("regul") for t in fig.data)
+
+
+# ---------------------------------------------------------------------------
+# scatter / time series statistics use weighted targets only
+# ---------------------------------------------------------------------------
+
+_w = _obs.groupby("grpSite").weight
+_MIXED_SITE = str(((_w.min() == 0) & (_w.max() > 0)).idxmax())   # site with zero- and non-zero-weight targets
+
+def _stats_table(fig):
+    table = next(t for t in fig.data if t.type == "table")
+    return [list(col) for col in table.cells.values]
+
+def test_residual_stats_excludes_zero_weight():
+    import numpy as np
+    import pandas as pd
+    from plotting import residual_stats
+    ts = pd.DataFrame(dict(measured=[1.0, 2.0, 3.0, 9.0], modelled=[1.0, 2.5, 2.0, 0.0],
+                           residual=[0.0, -0.5, 1.0, 9.0], weight=[1.0, 1.0, 1.0, 0.0]))
+    rmse, r2, mae, mean, rmin, rmax = residual_stats(ts)
+    assert np.isclose(rmse, np.sqrt((0.25 + 1.0) / 3))
+    assert np.isclose(mae, 0.5) and np.isclose(mean, 0.5 / 3)
+    assert rmin == -0.5 and rmax == 1.0
+    assert all(np.isnan(residual_stats(ts[ts.weight == 0])))
+
+@pytest.mark.parametrize("module", ["scatterplot", "tsplot"])
+def test_stats_ignore_zero_weight_display_option(module):
+    import importlib
+    plot = importlib.import_module(f"module.{module}").plot
+    with patch(f"module.{module}.parse_zip", return_value=GOOD_RESULT):
+        tables = []
+        for zeroweight in ["Hide", "Greyout", "DoNothing"]:
+            if module == "scatterplot":
+                fig = plot(1, {"pestpath": "dummy"}, "grpSite", _MIXED_SITE, False, zeroweight, "Jet", False)
+            else:
+                fig = plot(1, {"pestpath": "dummy"}, "grpSite", _MIXED_SITE, zeroweight, "Lines", "Jet", False)
+            tables.append(_stats_table(fig))
+    assert tables[0] == tables[1] == tables[2]

@@ -2,7 +2,7 @@ from dash import html, dcc, Input, Output, State, callback, no_update
 import dash_mantine_components as dmc
 import plotly.graph_objects as go
 import plotly.express as px
-from plotting import palettes
+from plotting import palettes, residual_stats, stat_names
 import pandas as pd
 from utils import parse_zip, isiterable
 from pst import get_obssim, get_obscor
@@ -153,22 +153,15 @@ def plot(clicks, data, grp, site, as_residual, zeroweight, palette, invcmap):
             hovertemplate='%{text}: %{y}',
             marker=dict(color=[color if w>0 else "grey" for w in ts["weight"]] if zeroweight=="Greyout" else color)
         ), row=1, col=1)
-        sims["Iter " + str(i)] = [
-            ((ts["residual"]**2).sum()/len(ts))**0.5,
-            (np.corrcoef(ts["measured"], ts["modelled"])[0,1])**2,
-            ts["residual"].abs().mean(),
-            ts["residual"].mean(),
-            ts["residual"].min(),
-            ts["residual"].max(),
-        ]
+        sims["Iter " + str(i)] = residual_stats(ts)
 
     sims = pd.DataFrame(sims)
-    sims.index = "RMSE R2 MeanAbsResid MeanResid MinResid MaxResid".split()
+    sims.index = stat_names
     # Add table
     fig.add_trace(
         go.Table(
             header=dict(
-                values=["Statistics"] +list(sims.columns),
+                values=["Statistics<br>(weight > 0)"] +list(sims.columns),
                 fill_color='royalblue',
                 line_color='darkslategray',
                 align="center",
