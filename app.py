@@ -53,7 +53,7 @@ app = dash.Dash(
 sspa_logo = dmc.Anchor(dmc.Image(
     radius="md",
     w=506,
-    src="https://sspa.com/wp-content/uploads/2021/05/SSPA_LogoTagline_blue_864x95.png",),
+    src=app.get_asset_url("SSPA_LogoTagline_blue_864x95.png"),),
     href="https://www.sspa.com",
 )
 
