@@ -6,7 +6,7 @@ import pandas as pd
 from utils import parse_zip, read_sites
 from plotting import message_figure
 from layout import update_groups, update_weights, about, graph
-from geo import read_layers
+from geo import read_layers, morans_i
 
 name = __name__.lstrip("module.") + "-"
 fullname = "Residual Map"
@@ -23,6 +23,10 @@ md = dcc.Markdown('''
     * **Weighted mean residual**: mean of weight × residual, i.e. the bias as PEST sees it.
     * **RMSE** and **mean absolute residual**: size of the misfit regardless of sign.
     * **Change in RMSE since iteration 0**: negative (blue) where the calibration improved the fit.
+
+    Above the map, Moran's I measures whether neighbouring sites have similar values of the mapped statistic
+    (8 nearest neighbours; p-value from 999 random permutations). A significant positive I for the mean residual means
+    the bias is spatially clustered, which usually points to a zone, boundary or structural problem rather than noise.
 
     Click a site to open its time series. Map layers (shapefiles or GeoJSON) are added on the Upload Data page.
     Basemap tiles are loaded by the browser from the selected provider (an internet connection is needed);
@@ -51,6 +55,12 @@ STATS = {
     "drmse": "Change in RMSE since iteration 0",
 }
 SIGNED = {"mean", "wmean", "drmse"}
+
+
+def in_sentence(label):
+    """a label as used inside a sentence: lower case unless it starts with an acronym (RMSE)"""
+    first = label.split()[0]
+    return label if first.isupper() else label[0].lower() + label[1:]
 LAYER_COLORS = ["#1f77b4", "#2ca02c", "#9467bd", "#8c564b", "#e377c2", "#17becf", "#bcbd22", "#ff7f0e"]
 
 
@@ -207,7 +217,22 @@ def plot(clicks, basemap, opacity, layer_on, data, layers, iiter, site_col, weig
         return message_figure(f"None of the {site_col} values match the site column of site.csv."), note
 
     on = [l for l, checked in zip(layers or [], layer_on) if checked]
-    return map_figure(located, stat, size_by, basemap, opacity, on, iiter, site_col), note
+    return map_figure(located, stat, size_by, basemap, opacity, on, iiter, site_col), [note, html.Br(), moran_note(located, stat)]
+
+
+def moran_note(located, stat):
+    """one-line spatial autocorrelation summary of the mapped statistic"""
+    result = morans_i(located.lat, located.lon, located[stat])
+    if result is None:
+        return "Moran's I: too few sites."
+    i, p, expected = result
+    if p < 0.05 and i > expected:
+        verdict = "neighbouring sites have similar values: the misfit is spatially clustered"
+    elif p < 0.05:
+        verdict = "neighbouring sites tend to differ (spatially dispersed)"
+    else:
+        verdict = "no significant spatial pattern"
+    return f"Moran's I of {in_sentence(STATS[stat])} = {i:.2f} (p = {p:.3f}; 8 nearest neighbours): {verdict}."
 
 
 def map_figure(located, stat, size_by, basemap, opacity, layers, iiter, site_col):
@@ -226,7 +251,7 @@ def map_figure(located, stat, size_by, basemap, opacity, layers, iiter, site_col
     extra = [c for c in located.columns if c not in ("n", "mean", "wmean", "mae", "rmse", "drmse", "lat", "lon")
              and located[c].notna().any()]
     shown = ["n", "mean", "wmean", "rmse", "mae"] + (["drmse"] if "drmse" in located else []) + extra
-    labels = {"n": "observations", **{k: v.lower() for k, v in STATS.items()}}
+    labels = {"n": "observations", **{k: in_sentence(v) for k, v in STATS.items()}}
     hover = "<b>%{customdata[0]}</b><br>" + "<br>".join(
         f"{labels.get(c, c)}: %{{customdata[{i + 1}]}}" for i, c in enumerate(shown)) + "<extra></extra>"
     customdata = np.column_stack([located.index.astype(str)] + [

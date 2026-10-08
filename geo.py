@@ -13,6 +13,39 @@ SIMPLIFY_DEG = 0.00005   # simplification tolerance in degrees (about 5 m), keep
 LAYER_EXTENSIONS = (".shp", ".geojson", ".json")
 
 
+def morans_i(lat, lon, values, k=8, permutations=999, seed=0):
+    """
+    Moran's I of site values with row-standardized k-nearest-neighbour weights, and a pseudo
+    p-value from random permutations (one-sided, in the direction of the observed I).
+    Returns (I, p, expected I) or None with too few sites.
+    """
+    lat, lon, z = (np.asarray(a, dtype=float) for a in (lat, lon, values))
+    ok = np.isfinite(lat) & np.isfinite(lon) & np.isfinite(z)
+    lat, lon, z = lat[ok], lon[ok], z[ok]
+    n = len(z)
+    if n < k + 2 or np.allclose(z, z[0]):
+        return None
+    # local planar coordinates (km) are accurate enough to find neighbours
+    x = (lon - lon.mean()) * np.cos(np.radians(lat.mean())) * 111.32
+    y = (lat - lat.mean()) * 110.57
+    d = np.hypot(x[:, None] - x[None, :], y[:, None] - y[None, :])
+    np.fill_diagonal(d, np.inf)
+    neighbours = np.argsort(d, axis=1)[:, :k]
+    W = np.zeros((n, n))
+    W[np.repeat(np.arange(n), k), neighbours.ravel()] = 1 / k
+
+    def stat(Z):   # rows of Z are (permuted) centred values
+        return np.einsum("ij,ij->i", Z, Z @ W.T) / np.einsum("ij,ij->i", Z, Z)
+
+    z = z - z.mean()
+    observed = stat(z[None, :])[0]
+    rng = np.random.default_rng(seed)
+    perm = stat(np.array([rng.permutation(z) for _ in range(permutations)]))
+    expected = -1 / (n - 1)
+    extreme = perm >= observed if observed >= expected else perm <= observed
+    return observed, (extreme.sum() + 1) / (permutations + 1), expected
+
+
 def layer_kind(geom_types):
     """how a layer is drawn: polygons as a light fill with an outline, lines as lines, points as circles"""
     if all("Point" in g for g in geom_types):

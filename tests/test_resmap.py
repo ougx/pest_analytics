@@ -54,7 +54,8 @@ def test_map_shows_every_located_site(mapped_data):
     fig, note = _plot(data)
     (trace,) = fig.data
     assert isinstance(trace, go.Scattermap)
-    assert len(trace.lat) == n_sites and note.startswith(f"{n_sites} sites mapped")
+    assert len(trace.lat) == n_sites and note[0].startswith(f"{n_sites} sites mapped")
+    assert note[2].startswith("Moran's I of mean residual =")
     assert trace.marker.cmid == 0                                  # diverging around zero for a signed statistic
 
 

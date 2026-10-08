@@ -89,3 +89,44 @@ def test_add_layers_callback(uploads):
     assert len(again) == 2
     assert "domain (1 polygon)" in show_layers(again).children
     assert clear_layers(1) == ([], None)
+
+
+# ---------------------------------------------------------------------------
+# Moran's I
+# ---------------------------------------------------------------------------
+
+def _grid(n=12):
+    import numpy as np
+    lat, lon = np.meshgrid(38 + np.arange(n) * 0.01, -122 + np.arange(n) * 0.01)
+    return lat.ravel(), lon.ravel()
+
+
+def test_morans_i_clustered():
+    from geo import morans_i
+    lat, lon = _grid()
+    i, p, expected = morans_i(lat, lon, lon)          # values follow a trend: strongly clustered
+    assert i > 0.8 and p < 0.01 and expected < 0
+
+
+def test_morans_i_random():
+    import numpy as np
+    from geo import morans_i
+    lat, lon = _grid()
+    i, p, _ = morans_i(lat, lon, np.random.default_rng(1).normal(size=lat.size))
+    assert abs(i) < 0.15 and p > 0.05
+
+
+def test_morans_i_dispersed():
+    import numpy as np
+    from geo import morans_i
+    lat, lon = _grid()
+    checkerboard = ((np.round((lat - 38) / 0.01) + np.round((lon + 122) / 0.01)) % 2) * 2 - 1
+    i, p, _ = morans_i(lat, lon, checkerboard, k=4)   # every neighbour has the opposite sign
+    assert i < -0.7 and p < 0.01                     # edge cells also have same-sign diagonal neighbours
+
+
+def test_morans_i_too_few_sites():
+    from geo import morans_i
+    assert morans_i([38, 38.1], [-122, -122.1], [1, 2]) is None
+    lat, lon = _grid(4)
+    assert morans_i(lat, lon, [1.0] * lat.size) is None    # no variation
