@@ -93,6 +93,20 @@ palettes = {
     "Alphabet": px.colors.qualitative.Alphabet,
 }
 
+def iteration_colors(iterations, palette, invert=False):
+    """{iteration: color}, sampled over all iterations so a color does not change with the selection"""
+    iterations = sorted(iterations)
+    colors = px.colors.sample_colorscale(palettes[palette], len(iterations))
+    return dict(zip(iterations, colors[::-1] if invert else colors))
+
+
+def select_iterations(reis, selected):
+    """[(iteration, residuals)] for the selected iterations ("All", or nothing selected: every iteration)"""
+    if not selected or "All" in selected:
+        return sorted(reis.items())
+    return [(i, df) for i, df in sorted(reis.items()) if str(i) in selected]
+
+
 # continuous color scales for matrices and signed values ("Color Scale" selector)
 colorscales = ["RdBu", "BrBG", "RdYlBu", "Jet", "Viridis", "Plotly3"]
 

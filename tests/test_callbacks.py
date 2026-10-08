@@ -494,7 +494,7 @@ _FIRST_SITE = str(_obs["grpSite"].iloc[0])
 def test_scatterplot_without_hp(mock_pz):
     from module.scatterplot import plot
     fig = plot(1, {"pestpath": "dummy"}, "grpSite", _FIRST_SITE, False, "Greyout", "Jet", False)
-    assert [t.name for t in fig.data if t.type == "scatter"][1:] == [f"Iter {i}" for i in range(1, _N_ITER + 1)]
+    assert [t.name for t in fig.data if t.type == "scattergl"] == [f"Iter {i}" for i in range(1, _N_ITER + 1)]
 
 @patch("module.tsplot.parse_zip", return_value=NO_HP_RESULT)
 def test_tsplot_without_hp(mock_pz):
@@ -686,3 +686,38 @@ def test_scatterplot_hovermode_option(mock_pz):
     args = (1, {"pestpath": "dummy"}, "grpSite", _FIRST_SITE, False, "Greyout", "Jet", False)
     assert plot(*args).layout.hovermode == "closest"              # default
     assert plot(*args, "x unified").layout.hovermode == "x unified"
+
+
+# ---------------------------------------------------------------------------
+# Scatter / Time Series: iteration selection
+# ---------------------------------------------------------------------------
+
+def test_update_rei_iter_defaults_to_last():
+    from layout import update_rei_iter
+    with patch("layout.parse_zip", return_value=GOOD_RESULT):
+        options, value = update_rei_iter({"pestpath": "dummy"})
+    assert options == ["All"] + [str(i) for i in range(0, _N_ITER + 1)]
+    assert value == [str(_N_ITER)]
+
+@pytest.mark.parametrize("module", ["scatterplot", "tsplot"])
+def test_plot_selected_iterations(module):
+    import importlib
+    plot = importlib.import_module(f"module.{module}").plot
+    def run(iters):
+        with patch(f"module.{module}.parse_zip", return_value=GOOD_RESULT):
+            if module == "scatterplot":
+                fig = plot(1, {"pestpath": "dummy"}, "grpSite", _FIRST_SITE, False, "Greyout", "Jet", False, "closest", iters)
+            else:
+                fig = plot(1, {"pestpath": "dummy"}, "grpSite", _FIRST_SITE, "Greyout", "Lines", "Jet", False, iters)
+        return fig, {t.name: t for t in fig.data if str(t.name).startswith("Iter")}
+    fig, last = run(["6"])
+    assert list(last) == ["Iter 6"]
+    table = next(t for t in fig.data if t.type == "table")
+    assert list(table.header.values)[1:] == ["Iter 6"]            # statistics for the selection only
+    _, two = run(["2", "6"])
+    assert list(two) == ["Iter 2", "Iter 6"]
+    _, every = run(["All"])
+    assert len(every) == _N_ITER + 1
+    # an iteration keeps its color whatever else is selected
+    color = lambda t: t.line.color if module == "tsplot" else t.marker.color
+    assert color(last["Iter 6"]) == color(every["Iter 6"]) == color(two["Iter 6"])

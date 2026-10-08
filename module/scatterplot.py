@@ -2,11 +2,11 @@ from dash import html, dcc, Input, Output, State, callback, no_update
 import dash_mantine_components as dmc
 import plotly.graph_objects as go
 import plotly.express as px
-from plotting import palettes, residual_stats, stat_names, message_figure
+from plotting import palettes, residual_stats, stat_names, message_figure, iteration_colors, select_iterations
 import pandas as pd
 from utils import parse_zip, isiterable
 from pst import get_obssim, get_obscor
-from layout import update_groups, update_obs, about, graph
+from layout import update_groups, update_obs, update_rei_iter, about, graph
 from plotly.subplots import make_subplots
 import numpy as np
 
@@ -53,6 +53,8 @@ layout = html.Div([
     dmc.Group([
         dmc.Select(id=name+"grp", label="Group Column:", data=["grpSite"], value="grpSite", style={"width": "150px"}),
         dmc.Select(id=name+"site", label="Select Group:", data=["Well1"], value="Well1", style={"width": "150px"}, searchable=True),
+        dmc.MultiSelect(id=name+"iters", label="Iterations:", data=["All"], value=[], clearable=True,
+                        style={"width": "260px"}),
         dmc.Switch(id=name+"residual", label="Plot residual", checked=False, style={"width": "150px"}),
         dmc.Select(id=name+"zeroweight", label="Zero Weight:", data=["Hide", "Greyout", "DoNothing"], value="Greyout", style={"width": "150px"}),
     ], mt=10, align="flex-end"),
@@ -95,6 +97,16 @@ def upload_pest(data):
     return data[0]
 
 @callback(
+    Output(name+"iters", "data"),
+    Output(name+"iters", "value"),
+    Input( "pest-data", "data"),
+)
+def upload_iterations(data):
+    # default: the last iteration only (plotting every iteration of a large dataset is slow)
+    return update_rei_iter(data)
+
+
+@callback(
     Output(name+"plot", "figure"),
     Input( name+"update-plot", "n_clicks"),
     State( "pest-data", "data"),
@@ -105,8 +117,9 @@ def upload_pest(data):
     State( name+"palette", "value"),
     State( name+"invcmap", "checked"),
     State( name+"hovermode", "value"),
+    State( name+"iters", "value"),
 )
-def plot(clicks, data, grp, site, as_residual, zeroweight, palette, invcmap, hovermode="closest"):
+def plot(clicks, data, grp, site, as_residual, zeroweight, palette, invcmap, hovermode="closest", iters=None):
     if clicks is None or clicks == 0:
         return message_figure("Load data, then click 'Plot Scatters'.")
     if data is None or data == {}:
@@ -118,9 +131,7 @@ def plot(clicks, data, grp, site, as_residual, zeroweight, palette, invcmap, hov
         return message_figure("No .rei file found in zip file.")
 
 
-    colors = px.colors.sample_colorscale(palettes[palette], len(reis))
-    if invcmap:
-        colors = colors[::-1]
+    color_of = iteration_colors(reis, palette, invcmap)
 
     fig = make_subplots(
         rows=1, cols=2,
@@ -143,13 +154,14 @@ def plot(clicks, data, grp, site, as_residual, zeroweight, palette, invcmap, hov
     ), row=1, col=1)
 
     sims = {}
-    for (i, df), color in zip(sorted(reis.items()), colors):
+    for i, df in select_iterations(reis, iters):
+        color = color_of[i]
         #print(df)
         ts = df[df[grp]==site]
         if zeroweight=="Hide":
             ts = ts[ts["weight"]>0]
 
-        fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scattergl(
             x=ts["measured"],
             y=ts["residual"] if as_residual else ts["modelled"],
             text=ts["obsname"],

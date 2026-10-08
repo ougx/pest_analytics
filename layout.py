@@ -101,6 +101,16 @@ def update_jco_iter(data, need_rei=False):
     return [no_update, no_update]
 
 
+def update_rei_iter(data):
+    """iterations selector for residual pages: ["All", "0", "1", ...] with the last iteration selected"""
+    if data is not None:
+        pst, par, obs, pars, reis, jcos = parse_zip(data, False, True, False)
+        if pst and reis:
+            iters = [str(i) for i in sorted(reis)]
+            return [["All"] + iters, [iters[-1]]]
+    return [no_update, no_update]
+
+
 def update_niter(data, loadpar=False, loadrei=False, loadjco=False, ):
     """update iteration selector"""
     if data is not None:
