@@ -6,6 +6,8 @@ from . import (
     parupdate,
     parsen,
     parcor,
+    parident,
+    parunc,
     obssen,
     obssim,
     obsconf,
@@ -29,6 +31,8 @@ sections = {
         "parupdate":parupdate,
         "parsen":parsen,
         "parcor":parcor,
+        "parident":parident,
+        "parunc":parunc,
     },
     "Observations": {
         "obssen":obssen,
