@@ -30,13 +30,18 @@ def mapped_data(tmp_path_factory):
     return {"pestpath": str(path)}, weighted.grpSite.dropna().nunique()
 
 
-def _plot(data, **kw):
+def _plot_all(data, **kw):
+    """the plot callback's figure, note and Find-site options"""
     from module.resmap import plot
-    args = dict(clicks=1, basemap="None", opacity=70, layer_on=[], data=data, layers=[], iiter="6",
+    args = dict(clicks=1, basemap="None", opacity=70, layer_on=[], find=None, data=data, layers=[], iiter="6",
                 site_col="grpSite", weight="weight", groups=["head", "flow"], years=None, no_years=True,
                 stat="mean", size_by="Observations")
     args.update(kw)
     return plot(**args)
+
+
+def _plot(data, **kw):
+    return _plot_all(data, **kw)[:2]
 
 
 def test_site_stats():
@@ -145,3 +150,20 @@ def test_phi_share_in_hover_and_note(mapped_data):
     unsited = ((weighted.weight * weighted.residual)**2)[weighted.grpSite.isna()].sum() / total_phi(rei, "weight")
     assert np.isclose(sum(shares) / 100 + unsited, 1, atol=0.01)   # every bit of phi is accounted for
     assert "of the total measurement φ of iteration 6" in note[0]
+
+
+def test_find_site_zooms_and_marks_it(mapped_data):
+    data, n_sites = mapped_data
+    fig, _, options = _plot_all(data)
+    assert len(options) == n_sites and options == sorted(options)
+    site = options[3]
+    found, _, _ = _plot_all(data, find=site)
+    (trace,) = found.data                                          # the halo is a map layer, not another trace
+    i = list(trace.customdata[:, 0]).index(site)
+    assert (found.layout.map.center.lat, found.layout.map.center.lon) == (trace.lat[i], trace.lon[i])
+    assert found.layout.map.zoom >= 12 and found.layout.uirevision != fig.layout.uirevision
+    halo = found.layout.map.layers[-1]
+    assert halo.type == "circle" and halo.source["geometry"]["coordinates"] == [trace.lon[i], trace.lat[i]]
+    # a name that is not on the map (e.g. after changing the groups) is ignored
+    ignored, _, _ = _plot_all(data, find="no such site")
+    assert ignored.layout.uirevision == fig.layout.uirevision and len(ignored.layout.map.layers) == 0

@@ -33,7 +33,8 @@ md = dcc.Markdown('''
     (8 nearest neighbours; p-value from 999 random permutations). A significant positive I for the mean residual means
     the bias is spatially clustered, which usually points to a zone, boundary or structural problem rather than noise.
 
-    Click a site to open its time series. Map layers (shapefiles or GeoJSON) are added on the Upload Data page.
+    Click a site to open its time series. To locate a well or gage, type its name in **Find site**: the map zooms to
+    it and marks it with a yellow halo (clear the box to zoom back out). Map layers (shapefiles or GeoJSON) are added on the Upload Data page.
     Basemap tiles are loaded by the browser from the selected provider (an internet connection is needed);
     choose "None" to work offline.
     ''',
@@ -96,6 +97,9 @@ layout = html.Div([
             dmc.Text("Basemap opacity:", size="sm", fw=500),
             dmc.Slider(id=name+"opacity", min=0, max=100, step=5, value=70, style={"width": "200px"}),
         ], gap=4),
+        dmc.Select(id=name+"find", label="Find site:", data=[], value=None, searchable=True, clearable=True,
+                   placeholder="Type a site name", nothingFoundMessage="No mapped site matches", limit=200,
+                   style={"width": "220px"}),
         html.Div(id=name+"layer-switches"),
     ], mt=10, align="flex-end"),
     dmc.Text(id=name+"note", size="sm", c="dimmed", mt=10),
@@ -184,10 +188,12 @@ def total_phi(rei, weight):
 @callback(
     Output(name+"plot", "figure"),
     Output(name+"note", "children"),
+    Output(name+"find", "data"),
     Input(name+"update-plot", "n_clicks"),
     Input(name+"basemap", "value"),
     Input(name+"opacity", "value"),
     Input({"type": name+"layer", "index": ALL}, "checked"),
+    Input(name+"find", "value"),
     State("pest-data", "data"),
     State("map-layers", "data"),
     State(name+"iter", "value"),
@@ -199,23 +205,23 @@ def total_phi(rei, weight):
     State(name+"stat", "value"),
     State(name+"size", "value"),
 )
-def plot(clicks, basemap, opacity, layer_on, data, layers, iiter, site_col, weight, groups, years, no_years,
+def plot(clicks, basemap, opacity, layer_on, find, data, layers, iiter, site_col, weight, groups, years, no_years,
          stat, size_by):
     if not clicks:
-        return message_figure("Load data with site.csv, then click 'Plot Map'."), None
+        return message_figure("Load data with site.csv, then click 'Plot Map'."), None, []
     if not data:
-        return message_figure("No data loaded. Load data on the Upload Data page, then click 'Plot Map'."), None
+        return message_figure("No data loaded. Load data on the Upload Data page, then click 'Plot Map'."), None, []
     pst, par, obs, pars, reis, jcos = parse_zip(data, False, True, False)
     if obs is None or not reis:
-        return message_figure("No .pst or .rei files found in the zip file."), None
+        return message_figure("No .pst or .rei files found in the zip file."), None, []
     try:
         sites = read_sites(data)
     except ValueError as e:
-        return message_figure(f"site.csv: {e}"), None
+        return message_figure(f"site.csv: {e}"), None, []
     if sites is None:
-        return message_figure("Add site.csv (site, lat, lon) to the zip file to map the residuals."), None
+        return message_figure("Add site.csv (site, lat, lon) to the zip file to map the residuals."), None, []
     if site_col not in obs.columns:
-        return message_figure(f"Column {site_col} not found."), None
+        return message_figure(f"Column {site_col} not found."), None, []
 
     n = int(iiter)
     years = None if no_years else years
@@ -228,10 +234,12 @@ def plot(clicks, basemap, opacity, layer_on, data, layers, iiter, site_col, weig
     note = (f"{len(located)} sites mapped, together {located.phi_share.sum():.1%} of the total measurement φ "
             f"of iteration {iiter}" + (f"; {unlocated} {site_col} values have no coordinates in site.csv" if unlocated else ""))
     if located.empty:
-        return message_figure(f"None of the {site_col} values match the site column of site.csv."), note
+        return message_figure(f"None of the {site_col} values match the site column of site.csv."), note, []
 
     on = [l for l, checked in zip(layers or [], layer_on) if checked]
-    return map_figure(located, stat, size_by, basemap, opacity, on, iiter, site_col), [note, html.Br(), moran_note(located, stat)]
+    find = find if find in located.index else None
+    fig = map_figure(located, stat, size_by, basemap, opacity, on, iiter, site_col, find)
+    return fig, [note, html.Br(), moran_note(located, stat)], sorted(set(located.index))
 
 
 def moran_note(located, stat):
@@ -249,7 +257,8 @@ def moran_note(located, stat):
     return f"Moran's I of {in_sentence(STATS[stat])} = {i:.2f} (p = {p:.3f}; 8 nearest neighbours): {verdict}."
 
 
-def map_figure(located, stat, size_by, basemap, opacity, layers, iiter, site_col):
+def map_figure(located, stat, size_by, basemap, opacity, layers, iiter, site_col, find=None):
+    """the residual map; find (a site in located) centers and zooms the map on that site and marks it"""
     values = located[stat]
     if stat in SIGNED:
         lim = np.nanquantile(np.abs(values), 0.95) or 1
@@ -283,14 +292,29 @@ def map_figure(located, stat, size_by, basemap, opacity, layers, iiter, site_col
     lat_span = located.lat.max() - located.lat.min()
     lon_span = located.lon.max() - located.lon.min()
     zoom = float(np.clip(np.log2(360 / max(lon_span, lat_span * 1.3, 0.01)) - 0.6, 1, 15))
+    center = dict(lat=located.lat.mean(), lon=located.lon.mean())
+    halo = []
+    if find is not None:
+        site = located.loc[[find]].iloc[0]          # first row if site.csv repeats the site
+        center = dict(lat=site.lat, lon=site.lon)
+        zoom = max(zoom, 12.0)
+        halo = [halo_layer(center["lat"], center["lon"])]
     fig.update_layout(
-        map=dict(style="white-bg", center=dict(lat=located.lat.mean(), lon=located.lon.mean()), zoom=zoom,
-                 layers=basemap_layers(basemap, opacity) + shape_layers(layers)),
+        map=dict(style="white-bg", center=center, zoom=zoom,
+                 layers=basemap_layers(basemap, opacity) + shape_layers(layers) + halo),
         height=750, margin=dict(l=0, r=0, t=40, b=0),
         title=f"{STATS[stat]} by {site_col}, residuals of iteration {iiter}",
-        uirevision=site_col,   # keep the user's pan/zoom when toggling layers or the basemap
+        # keep the user's pan/zoom when toggling layers or the basemap, but jump to a newly found site
+        uirevision=f"{site_col}|{find or ''}",
     )
     return fig
+
+
+def halo_layer(lat, lon):
+    """a yellow disc drawn under the markers to pick out the found site"""
+    point = {"type": "Feature", "geometry": {"type": "Point", "coordinates": [float(lon), float(lat)]}}
+    return dict(sourcetype="geojson", source=point, type="circle", circle=dict(radius=20), color="#ffd400",
+                opacity=0.8, below="traces")
 
 
 def basemap_layers(basemap, opacity):
