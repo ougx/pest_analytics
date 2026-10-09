@@ -1,14 +1,10 @@
 """
-This app creates a simple sidebar layout using inline style arguments and the
-dbc.Nav component.
+PEST_HP Analytics: a Dash + dash-mantine-components app for post-processing PEST_HP runs.
+Pages are in module/ (grouped into navigation sections in module/__init__.py).
 
-dcc.Location is used to track the current location, and a callback uses the
-current location to render the appropriate page content. The active prop of
-each NavLink is set automatically according to the current pathname. To use
-this feature you must install dash-bootstrap-components >= 0.11.0.
-
-For more details on building multi-page Dash applications, check out the Dash
-documentation: https://dash.plotly.com/urls
+Run for development with `python app.py` (PORT env var, default 8888) or serve with
+waitress (waitress.bat). The app loads no third-party scripts or stylesheets, so it
+works on an offline network; only the Residual Map basemap tiles come from the internet.
 """
 
 import dash
@@ -18,33 +14,12 @@ dash._dash_renderer._set_react_version("18.2.0")
 from module import apps, sections
 
 
-stylesheets = [
-    "https://unpkg.com/@mantine/dates@7/styles.css",
-    "https://unpkg.com/@mantine/code-highlight@7/styles.css",
-    "https://unpkg.com/@mantine/charts@7/styles.css",
-    "https://unpkg.com/@mantine/carousel@7/styles.css",
-    "https://unpkg.com/@mantine/notifications@7/styles.css",
-    "https://unpkg.com/@mantine/nprogress@7/styles.css",
-    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css",
-]
-
-scripts = [
-    "https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.10.8/dayjs.min.js",
-    "https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.10.8/locale/ru.min.js",
-    "https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.10.8/locale/fr.min.js",
-    "https://www.googletagmanager.com/gtag/js?id=G-4PJELX1C4W",
-    "https://media.ethicalads.io/media/client/ethicalads.min.js",
-    "https://unpkg.com/hotkeys-js/dist/hotkeys.min.js",
-]
-
 TITLE = "PEST_HP_ANALYTICS"
 
 app = dash.Dash(
     __name__,
     title="SSPA|" + TITLE,
     # use_pages=True,
-    external_scripts=scripts,
-    external_stylesheets=stylesheets,
     suppress_callback_exceptions=True,
     prevent_initial_callbacks=True,
 )

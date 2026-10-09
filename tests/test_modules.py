@@ -30,3 +30,13 @@ def test_no_function_defined_twice(page):
     source = pathlib.Path(module.__path__[0], page + ".py").read_text(encoding="utf-8")
     names = [n.name for n in ast.parse(source).body if isinstance(n, ast.FunctionDef)]
     assert [n for n, c in collections.Counter(names).items() if c > 1] == []
+
+
+def test_index_page_loads_nothing_from_other_sites():
+    # no analytics, ad or CDN scripts: the app must work on an offline network (review 4.1)
+    import re
+    import app
+    html = app.app.server.test_client().get("/").get_data(as_text=True)
+    sources = re.findall(r'<(?:script|link)[^>]+(?:src|href)="([^"]+)"', html)
+    assert sources and not [s for s in sources if s.startswith(("http:", "https:", "//"))]
+    assert "googletagmanager" not in html and "ethicalads" not in html
