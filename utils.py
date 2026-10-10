@@ -145,7 +145,7 @@ def check_data(data):
 
 UPLOAD_DIR = os.environ.get("PEST_UPLOAD_DIR", os.path.join(tempfile.gettempdir(), "pest_analytics_uploads"))
 UPLOAD_MAX_AGE_DAYS = 7
-CACHE_SIZE = int(os.environ.get("PEST_CACHE_SIZE", 4))  # parsed results kept in memory (2 per dataset)
+CACHE_SIZE = int(os.environ.get("PEST_CACHE_SIZE", 8))  # parsed results kept in memory (up to 2 per run)
 
 _cache = OrderedDict()   # (source key, with_jco) -> read_pest_zip result
 _cache_lock = threading.Lock()

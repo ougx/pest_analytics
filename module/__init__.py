@@ -11,6 +11,7 @@ from . import (
     obssen,
     obssim,
     obsconf,
+    cmpsetup,
     resinfl,
     resmap,
 )
@@ -38,6 +39,9 @@ sections = {
         "obssen":obssen,
         "obssim":obssim,
         "obsconf":obsconf,
+    },
+    "Compare": {
+        "cmpsetup":cmpsetup,
     },
 }
 

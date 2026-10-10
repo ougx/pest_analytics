@@ -1,4 +1,4 @@
-from dash import html, dcc, Input, Output, callback, clientside_callback, State, no_update, ALL
+from dash import html, dcc, Input, Output, callback, clientside_callback, State, no_update, ALL, ctx
 import dash_mantine_components as dmc
 import os
 from utils import parse_zip, save_upload, read_sites, check_pest_files
@@ -72,6 +72,27 @@ layout = html.Div([
         html.Div(id="layer-list"),
         dmc.Button("Clear layers", id="btn-clear-layers", size="xs", variant="subtle", color="red"),
     ], justify="space-between", mt=10),
+    html.H4("Runs to compare (optional)", style={"margin-top": "30px"}),
+    dmc.Text("Other runs to compare with the loaded run (the reference) on the Compare pages. "
+             "Observations, parameters and prior information are matched by name.", size="sm", c="dimmed"),
+    dmc.Group([
+        dmc.TextInput(id="compare-path", placeholder="zip file path of another run", style={"flex": 1}),
+        dmc.Button("Add run", id="btn-add-compare", variant="outline"),
+    ], mt=10),
+    dcc.Upload(
+        id="upload-compare",
+        children="or drop the zip file of another run here",
+        accept=".zip",
+        style={"border": "1px dashed", "width": "100%", "padding": "14px", "textAlign": "center",
+               "color": "#228be6", "margin-top": "10px"},
+    ),
+    html.Div(id="compare-message", style={"margin-top": "10px"}),
+    dmc.Group([
+        html.Div(id="compare-list"),
+        dmc.Button("Clear runs", id="btn-clear-compare", size="xs", variant="subtle", color="red"),
+    ], justify="space-between", mt=10),
+    dcc.Store(id="compare-runs", storage_type="memory"),
+    dcc.Store(id="compare-runs-saved", storage_type="memory"),
     dcc.Store(id="map-layers", storage_type="memory"),
     dcc.Store(id="map-layers-saved", storage_type="memory"),
     # pages listen to pest-data. Its small reference (a path or upload key) is also saved in the
@@ -219,6 +240,103 @@ def set_layer_categories(categories, layers):
     if all(l.get("category") == c for l, c in zip(layers, categories)):
         return no_update   # nothing changed (e.g. the list was just redrawn)
     return [{**l, "category": c} for l, c in zip(layers, categories)]
+
+
+# runs to compare: same pattern, a list of run references ({"name", "filename", "upload", "pestpath"})
+clientside_callback(
+    """function (runs) {
+        if (runs !== null && runs !== undefined) {
+            window.sessionStorage.setItem("compare-runs", JSON.stringify(runs));
+        }
+        return window.dash_clientside.no_update;
+    }""",
+    Output("compare-runs-saved", "data"),
+    Input("compare-runs", "data"),
+)
+
+clientside_callback(
+    """function (pathname) {
+        const saved = window.sessionStorage.getItem("compare-runs");
+        return saved ? JSON.parse(saved) : window.dash_clientside.no_update;
+    }""",
+    Output("compare-runs", "data", allow_duplicate=True),
+    Input("pest-url", "pathname"),
+    prevent_initial_call="initial_duplicate",  # runs on page load
+)
+
+
+@callback(
+    Output("compare-runs", "data", allow_duplicate=True),
+    Output("compare-message", "children"),
+    Output("upload-compare", "contents"),
+    Input("btn-add-compare", "n_clicks"),
+    Input("upload-compare", "contents"),
+    State("upload-compare", "filename"),
+    State("compare-path", "value"),
+    State("compare-runs", "data"),
+    prevent_initial_call=True,
+    running=[(Output("btn-add-compare", "loading"), True, False)],
+)
+def add_compare_run(n_clicks, contents, filename, path, runs):
+    """check that the run can be read and add its reference to the list"""
+    if ctx.triggered_id == "upload-compare":
+        if not contents:
+            return no_update, no_update, no_update
+        ref = {"filename": filename, "upload": save_upload(contents), "pestpath": None}
+    else:
+        if not path:
+            return no_update, message("Enter the zip file path of another run first.", "yellow"), no_update
+        ref = {"filename": None, "upload": None, "pestpath": path.strip().strip('"')}
+    runs = list(runs or [])
+    if any((r.get("upload"), r.get("pestpath")) == (ref["upload"], ref["pestpath"]) for r in runs):
+        return no_update, message("That run is already in the list.", "yellow"), None
+    where = ref["pestpath"] or filename
+    try:
+        pst = parse_zip(ref, False, False, False)[0]
+    except Exception as e:
+        return no_update, message(f"Could not read {where}: {e}", "red"), None
+    if pst is None:
+        return no_update, message(f"File not found: {where}", "red"), None
+    if pst == "":
+        return no_update, message(f"No .pst file found in {where}.", "red"), None
+    return runs + [{**ref, "name": pst}], message(f"Added {pst}.", "green"), None
+
+
+@callback(
+    Output("compare-runs", "data", allow_duplicate=True),
+    Input({"type": "compare-remove", "index": ALL}, "n_clicks"),
+    State("compare-runs", "data"),
+    prevent_initial_call=True,
+)
+def remove_compare_run(n_clicks, runs):
+    if not runs or not ctx.triggered_id or not any(n_clicks):
+        return no_update   # the list was just redrawn
+    i = ctx.triggered_id["index"]
+    return [r for j, r in enumerate(runs) if j != i]
+
+
+@callback(
+    Output("compare-runs", "data", allow_duplicate=True),
+    Output("compare-message", "children", allow_duplicate=True),
+    Input("btn-clear-compare", "n_clicks"),
+    prevent_initial_call=True,
+)
+def clear_compare_runs(n_clicks):
+    return [], None
+
+
+@callback(
+    Output("compare-list", "children"),
+    Input("compare-runs", "data"),
+)
+def show_compare_runs(runs):
+    if not runs:
+        return dmc.Text("No runs to compare.", size="sm", c="dimmed")
+    rows = [dmc.Group([
+        dmc.Button("Remove", id={"type": "compare-remove", "index": i}, size="compact-xs", variant="subtle", color="red"),
+        dmc.Text(f"{r['name']}  ({r.get('pestpath') or r.get('filename')})", size="sm"),
+    ], gap="sm") for i, r in enumerate(runs)]
+    return dmc.Stack(rows, gap=4)
 
 
 @callback(
