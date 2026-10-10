@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from utils import parse_zip
 from plotting import message_figure
-from pst import get_obs_pull, get_par_tension, get_jco_rei
+from pst import get_obs_pull, get_par_tension, get_jco_rei, iteration_step, step_agreement
 from layout import update_groups, update_weights, update_jco_iter, about, graph
 
 name = __name__.removeprefix("module.") + "-"
@@ -39,6 +39,16 @@ md = dcc.Markdown('''
 
     1. The bar chart ranks parameters by tension. The net pull (diamond) is what is left; at convergence it is balanced by regularization and parameter bounds.
     2. The heatmap shows the share of the pull on each parameter that comes from each group. A column with both strong red and strong blue cells is a conflict.
+       Read it with two cautions:
+       - *The columns are conflicts by construction.* They are the parameters with the most tension, and a parameter only has tension if some groups
+         pull it up and others pull it down. Parameters on which all groups agree have no tension and are left out. With only two groups
+         (e.g. heads and flows) every column is one red and one blue cell whose shares add up to 100%, so the heatmap repeats the bar chart, and a
+         group that is blue in every column does not mean it wants *every* parameter to decrease, only the conflicting ones shown.
+         Raise *Number of Parameters* to see the rest.
+       - *A group's pull is a sum, and a few targets can dominate it.* Pull grows with the squared weight times the residual, so a handful of
+         targets with large weighted residuals can set the direction of a whole group while the other targets in it pull both ways and cancel.
+         A group that pulls every parameter the same way is often a single site with a large misfit (e.g. a well whose modelled heads are tens of
+         feet off), not the group as a whole. Regroup by site or `obsname`, or put the group in Target Focus, to find out which targets carry the pull.
     3. The Sankey diagram drills into the selected parameters (click a bar or a heatmap cell to add one) and shows which targets pull each way.
     4. Target Focus starts from a chosen observation or group $F$ instead (click a heatmap cell to focus on its row). It shows what $F$ wants,
        ranked by how strongly the other targets pull the opposite way, and which targets oppose it. Target $k$ opposes $F$ by
@@ -48,6 +58,32 @@ md = dcc.Markdown('''
        the share of the focus pull it opposes (agreement is the same sum over parameters pulled in the same direction).
        A focus opposed by many unrelated targets points to the focus itself (questionable data, too much weight, or a local feature the model
        cannot represent); a focus opposed mainly by one site or group points to a structural conflict between the two.
+    5. The Next Step Check compares the net pull of `.jco.N` with the step PEST actually took in iteration N, from `.par.(N-1)` to `.par.N`
+       (log10 of the ratio for log-transformed parameters, the relative change for untransformed ones). It always uses individual parameters and the
+       weights in the `.pst` file, the ones PEST used. Green parameters moved the way their net pull points, orange ones moved the opposite way,
+       and crosses mark parameters that ended the iteration on a bound. The right panel shows the share of moved parameters that followed
+       their net pull in every iteration; 50% is no better than a coin flip.
+
+    **The net pull is not the step PEST takes.** A negative net pull does not mean the parameter will decrease in the next iteration.
+    Summed over all targets, the pull is twice the steepest-descent direction of the measurement objective function,
+    $\\sum_i P_{ij} = 2(J^TQr)_j$ with $Q$ the diagonal matrix of squared weights. PEST's upgrade is (in its simplest form) the Gauss-Newton/Marquardt step
+    $$
+                  \\Delta p = (J^TQJ + \\lambda I)^{-1} J^TQr,
+    $$
+    and it differs from the pull for several reasons:
+    - *Parameter correlation.* $(J^TQJ)^{-1}$ accounts for parameters doing the same job. If raising A and raising B both reduce $\\phi$ but B
+      does it more efficiently, PEST may raise B a lot and lower A, against A's pull. Only with a very large Marquardt $\\lambda$ does the step
+      follow the pull, and PEST tests several $\\lambda$ values and keeps the best.
+    - *Regularisation.* Prior information and regularisation (e.g. Tikhonov preferred-value or homogeneity constraints on pilot points)
+      are not targets on this page, but they pull too, usually back toward the preferred values, and PEST balances them against the data.
+    - *SVD and subspace solutions.* With truncated SVD (PEST_HP, SVD-assist) PEST only moves combinations of parameters that the data
+      can inform, so a weakly informed parameter moves with the combinations it belongs to, not with its own pull.
+    - *Bounds and change limits.* A parameter at a bound, or one whose change is capped by `parchglim`/`facparmax`/`relparmax`, cannot follow its pull,
+      and tied parameters add their pull to their parent.
+    - *Linearisation.* The pull holds only at the parameters where the Jacobian was computed; a large step moves far from that point.
+
+    Use the net pull to see which way the *data* want a parameter to go, and the tension to see where the data disagree; do not use it
+    to predict the next parameter value.
 
     Persistent tension after convergence often indicates model structural error (e.g. a missing zone or a wrong boundary condition) or
     inconsistent data/weights, rather than a poorly estimated parameter. The analysis is linear and only valid near the parameters where
@@ -70,6 +106,8 @@ layout = html.Div([
     ], mt=10, align="flex-end"),
     graph(name+"bar", message_figure("Load data, then click 'Plot Conflicts'."), fullname + " tension"),
     graph(name+"heat", message_figure(), fullname + " shares"),
+    html.H4("Next Step Check", style={"margin-top": "20px"}),
+    graph(name+"step", message_figure(), fullname + " next step"),
     html.H4("Drill-down", style={"margin-top": "20px"}),
     dmc.Group([
         dmc.MultiSelect(id=name+"sankey-par", label="Parameters (click a bar or heatmap cell to add):",
@@ -238,6 +276,98 @@ def share_figure(G, ngrp, grp):
         xaxis=dict(tickangle=90),
     )
     fig.update_yaxes(autorange="reversed")
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Next step check: does PEST's step follow the net pull?
+# ---------------------------------------------------------------------------
+
+@callback(
+    Output(name+"step", "figure"),
+    Input( name+"update-plot", "n_clicks"),
+    State( "pest-data", "data"),
+    State( name+"iter", "value"),
+)
+def plot_next_step(clicks, data, iiter):
+    if not clicks or data is None or data == {}:
+        return message_figure()
+    points, history, msg = get_next_step(data, int(iiter))
+    if points is None:
+        return message_figure(msg)
+    return next_step_figure(points, history, int(iiter))
+
+
+def get_next_step(data, iiter):
+    """
+    Net pull of every .jco.N (individual parameters, .pst weights) against the step of iteration N.
+    Returns (points for iteration iiter, agreement for every iteration, message);
+    points is None if iteration iiter cannot be checked, and message then explains why.
+    """
+    pst, par, obs, pars, reis, jcos = parse_zip(data, True, True, True)
+    if obs is None or not jcos:
+        return None, None, "No .pst or .jco file found in zip file."
+    points, history = None, []
+    for n in sorted(jcos):
+        rei = get_jco_rei(reis, n)
+        step, at_bound = iteration_step(pars, n)
+        if rei is None or step is None:
+            continue
+        pull = get_obs_pull(obs, jcos[n], rei)
+        net = pull.sum()
+        agree, moved = step_agreement(net, step)
+        history.append((n, agree, moved))
+        if n == iiter:
+            points = pd.concat(dict(net=net, share=net / pull.abs().sum().replace(0, np.nan),
+                                    step=step, at_bound=at_bound), axis=1, join="inner")
+    if points is None:
+        return None, None, f"No .par.{iiter} (and .par.{iiter - 1}) file: the step of iteration {iiter} is not available."
+    return points, pd.DataFrame(history, columns=["iter", "agree", "moved"]).set_index("iter"), ""
+
+
+def next_step_figure(points, history, iiter, moved=1e-6):
+    fig = make_subplots(rows=1, cols=2, column_widths=[0.7, 0.3], horizontal_spacing=0.08,
+                        subplot_titles=(f"Net pull of .jco.{iiter} vs. step of iteration {iiter}",
+                                        "Moved the way the net pull points (dashed: coin flip)"))
+    same = np.sign(points.net) == np.sign(points.step)
+    still = points.step.abs() <= moved
+    hover = ("%{text}<br>net pull: %{customdata[0]:.4g}<br>net / total pull: %{x:.1%}"
+             "<br>step: %{y:.4g}<br>on a bound: %{customdata[1]}<extra>%{fullData.name}</extra>")
+    for label, mask, color in (("Followed net pull", same & ~still, AGREE),
+                               ("Moved against net pull", ~same & ~still, OPPOSE),
+                               ("Did not move", still, "lightgray")):
+        df = points[mask]
+        fig.add_trace(go.Scatter(
+            x=df.share, y=df.step, mode="markers", name=label, text=df.index,
+            marker=dict(color=color, size=9, symbol=np.where(df.at_bound, "x", "circle"),
+                        line=dict(width=0.5, color="dimgray")),
+            customdata=np.c_[df.net, np.where(df.at_bound, "yes", "no")], hovertemplate=hover,
+        ), row=1, col=1)
+    fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", name="On a bound (×)",
+                             marker=dict(symbol="x", size=9, color="dimgray")), row=1, col=1)
+    fig.add_hline(y=0, line=dict(color="gray", width=1), row=1, col=1)
+    fig.add_vline(x=0, line=dict(color="gray", width=1), row=1, col=1)
+
+    share = history.agree / history.moved.replace(0, np.nan)
+    fig.add_trace(go.Bar(
+        x=history.index.astype(str), y=share, name="Share followed", showlegend=False,
+        marker_color=["black" if i == iiter else "darkgray" for i in history.index],
+        text=[f"{a}/{m}" for a, m in zip(history.agree, history.moved)], textposition="outside",
+        hovertemplate="iteration %{x}<br>%{y:.0%} of moved parameters (%{text}) followed the net pull<extra></extra>",
+    ), row=1, col=2)
+    fig.add_hline(y=0.5, line=dict(color="gray", dash="dash"), row=1, col=2)
+
+    a, m = history.loc[iiter, ["agree", "moved"]]
+    fig.update_layout(
+        height=500,
+        title=f"PEST's step vs. the net pull: in iteration {iiter}, {a} of {m} moved parameters"
+              f" ({a / max(m, 1):.0%}) went the way the net pull points",
+        legend=dict(orientation="h", y=-0.2, yanchor="top", x=0, xanchor="left"),
+    )
+    fig.update_xaxes(title_text="Net pull / total pull (+100%: all targets want increase)", tickformat=".0%", row=1, col=1)
+    fig.update_yaxes(title_text="Step: log10(p_N / p_N-1)", row=1, col=1)
+    fig.update_xaxes(title_text="Iteration", row=1, col=2)
+    fig.update_yaxes(tickformat=".0%", range=[0, 1.1], row=1, col=2)
     return fig
 
 

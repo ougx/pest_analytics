@@ -298,3 +298,38 @@ def test_parameter_change_real_iteration(pars_dict, par_df):
     change = parameter_change(pars_dict[6])
     assert len(change) == int(par_df.partrans.isin(["log", "none"]).sum())
     assert np.isfinite(change).all()
+
+
+# ---------------------------------------------------------------------------
+# iteration_step / step_agreement (Observation Conflict's next step check)
+# ---------------------------------------------------------------------------
+
+def _par_iteration(values):
+    return pd.DataFrame(dict(
+        parname=["a", "b", "c"], parval=values, parval0=[1.0, 1.0, 1.0],
+        partrans=["log", "log", "none"], parlbnd=[0.1, 0.1, -10.0], parubnd=[100.0, 100.0, 10.0],
+    ))
+
+def test_iteration_step_from_previous_iteration():
+    from pst import iteration_step
+    pars = {1: _par_iteration([10.0, 1.0, 2.0]), 2: _par_iteration([100.0, 0.1, 3.0])}
+    step, at_bound = iteration_step(pars, 2)
+    assert np.isclose(step["a"], 1.0) and np.isclose(step["b"], -1.0)   # from .par.1, not parval0
+    assert np.isclose(step["c"], 0.5)                                     # (3 - 2)/2
+    assert at_bound.to_dict() == {"a": True, "b": True, "c": False}
+    step, _ = iteration_step(pars, 1)
+    assert np.isclose(step["a"], 1.0)                                     # first iteration: from parval0
+    assert iteration_step(pars, 3) == (None, None)
+    assert iteration_step({2: pars[2]}, 2) == (None, None)
+
+def test_step_agreement_counts_moved_parameters():
+    from pst import step_agreement
+    net = pd.Series(dict(a=1.0, b=-2.0, c=3.0, d=1.0, e=0.0))
+    step = pd.Series(dict(a=0.5, b=0.1, c=0.0, d=-1e-9, e=1.0))
+    assert step_agreement(net, step) == (1, 2)   # a agrees, b disagrees; c, d did not move; e has no pull
+
+def test_iteration_step_real_data(pars_dict, par_df):
+    from pst import iteration_step
+    step, at_bound = iteration_step(pars_dict, 6)
+    assert len(step) == int(par_df.partrans.isin(["log", "none"]).sum())
+    assert np.isfinite(step).all() and at_bound.dtype == bool

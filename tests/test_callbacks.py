@@ -800,3 +800,28 @@ def test_weight_selector_options():
     from layout import update_weights
     with patch("layout.parse_zip", return_value=GOOD_RESULT):
         assert update_weights({"pestpath": "x"}, "weight") == [["weight", "weight_orig"], "weight"]
+
+
+# ---------------------------------------------------------------------------
+# obsconf next step check
+# ---------------------------------------------------------------------------
+
+@patch("module.obsconf.parse_zip", return_value=GOOD_RESULT)
+def test_obsconf_next_step(mock_pz):
+    from module.obsconf import plot_next_step
+    fig = plot_next_step(1, {"pestpath": "dummy"}, str(_N_ITER))
+    bars = [t for t in fig.data if t.type == "bar"]
+    assert len(bars) == 1 and list(bars[0].x) == [str(i) for i in range(1, _N_ITER + 1)]
+    assert all(0 <= y <= 1 for y in bars[0].y)
+    points = sum(len(t.x) for t in fig.data if t.type == "scatter" and t.x[0] is not None)
+    assert points > 0
+
+@patch("module.obsconf.parse_zip", return_value=(_pst, _par, _obs, {}, _reis, _jcos))
+def test_obsconf_next_step_without_par_files(mock_pz):
+    from module.obsconf import plot_next_step
+    fig = plot_next_step(1, {"pestpath": "dummy"}, "2")
+    assert ".par.2" in _message(fig)
+
+def test_obsconf_next_step_no_clicks():
+    from module.obsconf import plot_next_step
+    assert isinstance(plot_next_step(None, None, "1"), go.Figure)

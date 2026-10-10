@@ -166,3 +166,32 @@ def parameter_change(pars):
     p, p0 = df.parval.astype(float), df.parval0.astype(float)
     relative = (p - p0) / p0.abs().where(p0 != 0)
     return pd.Series(np.where(df.partrans == "log", np.log10(p / p0), relative), index=df.index)
+
+
+def iteration_step(pars, iiter):
+    """
+    The step PEST took in iteration N, from the parameters where .jco.N was computed
+    (.par.(N-1), the initial values for N = 1) to .par.N, as in parameter_change.
+    Returns (step, at_bound): at_bound is True where .par.N sits on a parameter bound.
+    Returns (None, None) if .par.N (or .par.(N-1) for N > 1) is not available.
+    """
+    if iiter not in pars or (iiter > 1 and iiter - 1 not in pars):
+        return None, None
+    df = pars[iiter].copy()
+    if iiter > 1:
+        df["parval0"] = df.parname.map(pars[iiter - 1].set_index("parname").parval)
+    step = parameter_change(df)
+    df = df.set_index("parname").loc[step.index]
+    p, lo, hi = (df[c].astype(float) for c in ("parval", "parlbnd", "parubnd"))
+    tol = 1e-6 * np.maximum(p.abs(), 1e-30)
+    return step, (p - lo <= tol) | (hi - p <= tol)
+
+
+def step_agreement(net, step, moved=1e-6):
+    """
+    Share of the parameters that moved (|step| > moved) whose step has the sign of the net pull.
+    net, step: Series by parameter name. Returns (number agreeing, number moved).
+    """
+    df = pd.concat(dict(net=net, step=step), axis=1, join="inner")
+    df = df[(df.step.abs() > moved) & (df.net != 0)]
+    return int((np.sign(df.net) == np.sign(df.step)).sum()), len(df)
