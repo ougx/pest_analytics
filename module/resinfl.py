@@ -1,10 +1,12 @@
 import numpy as np
 import pandas as pd
-from dash import html, dcc, Input, Output, State, callback
+from dash import html, dcc, Input, Output, State, callback, no_update
 import dash_mantine_components as dmc
 from utils import parse_zip
-from plotting import colorscales, message_figure
+from plotting import colorscales, message_figure, normal_scores, qq_line
+import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from pst import get_weighted_jco, get_jco_rei
 from layout import update_groups, update_weights, update_jco_iter, about, graph
 
@@ -76,7 +78,21 @@ layout = html.Div([
     #     mb=10,
     #     searchable=True,
     # ),
-    graph(name+"plot", message_figure("Load data, then click 'Plot Residual'."), fullname + "", style={"margin-bottom":"90px"}),
+    graph(name+"plot", message_figure("Load data, then click 'Plot Residual'."), fullname + ""),
+    html.H4("Weighted residual distribution", style={"margin-top": "30px"}),
+    dmc.Text("Weighted residuals w(measured - modelled) of the weighted observations (regularization excluded), by the "
+             "'Grouped by' column above. If the weights were 1 / noise standard deviation and the noise were independent "
+             "and normal, they would follow a standard normal distribution: the Q-Q points would lie on a line of slope 1 "
+             "through the origin. A steeper line means more misfit than the weights allow; bent tails, outliers or "
+             "steps point to a few targets or groups. Head residuals are usually correlated in time, so read this as a "
+             "check for outliers and skew rather than as a formal test.", size="sm", c="dimmed"),
+    dmc.Group([
+        dmc.Select(id=name+"dist-iter", label="Residual Iteration:", description=".rei.N (0: .hp)",
+                   data=["0"], value="0", style={"width": "150px"}),
+        dmc.Button("Plot Distribution", id=name+"dist-update", color="blue"),
+    ], mt=10, align="flex-end"),
+    graph(name+"dist", message_figure("Load data, then click 'Plot Distribution'."), "Weighted Residual Distribution",
+          style={"margin-bottom":"90px"}),
 ])
 
 
@@ -212,4 +228,88 @@ def plot(clicks, data, iiter, grp, weight, palette, invcmap, xscale, yscale, ): 
 
 
 
+    return fig
+
+
+@callback(
+    Output(name+"dist-iter", "data"),
+    Output(name+"dist-iter", "value"),
+    Input( "pest-data", "data"),
+)
+def fill_residual_iterations(data):
+    if not data:
+        return no_update, no_update
+    reis = parse_zip(data, False, True)[4]
+    if not reis:
+        return no_update, no_update
+    iters = [str(i) for i in sorted(reis)]
+    return iters, iters[-1]
+
+
+@callback(
+    Output(name+"dist", "figure"),
+    Input( name+"dist-update", "n_clicks"),
+    State( "pest-data", "data"),
+    State( name+"dist-iter", "value"),
+    State( name+"grp", "value"),
+    State( name+"weight", "value"),
+)
+def plot_distribution(clicks, data, iiter, grp="obsgrp", weight="weight"):
+    if not clicks:
+        return message_figure("Load data, then click 'Plot Distribution'.")
+    if not data:
+        return message_figure("No data loaded. Load data on the Upload Data page, then click 'Plot Distribution'.")
+    reis = parse_zip(data, False, True)[4]
+    if not reis or int(iiter) not in reis:
+        return message_figure("No residuals for that iteration.")
+    rei = reis[int(iiter)]
+    grp = grp if grp in rei.columns else "obsgrp"
+    df = rei[(rei[weight] > 0) & ~rei.obsgrp.astype(str).str.startswith("regul")]
+    if len(df) < 3:
+        return message_figure("Too few weighted observations.")
+    return distribution_figure(df.obsname.values, (df[weight] * df.residual).values, df[grp].astype(str).values,
+                               int(iiter), grp)
+
+
+def distribution_figure(names, wr, groups, iiter, grp, max_groups=10):
+    from scipy.stats import norm
+    fig = make_subplots(rows=1, cols=2, column_widths=[0.45, 0.55], horizontal_spacing=0.08,
+                        subplot_titles=("Histogram by group", "Normal Q-Q plot"))
+    counts = pd.Series(groups).value_counts()
+    shown = list(counts.index[:max_groups])
+    colors = px.colors.qualitative.Plotly
+    color = {g: colors[i % len(colors)] for i, g in enumerate(shown)}
+    bins = dict(start=float(np.min(wr)), end=float(np.max(wr)), size=float(np.ptp(wr)) / 40 or 1)
+    for g in shown:
+        fig.add_trace(go.Histogram(x=wr[groups == g], name=g, legendgroup=g, marker_color=color[g], opacity=0.6,
+                                   xbins=bins, hovertemplate=f"{g}<br>%{{x}}: %{{y}}<extra></extra>"), row=1, col=1)
+    mu, sd = float(np.mean(wr)), float(np.std(wr))
+    x = np.linspace(np.min(wr), np.max(wr), 200)
+    fig.add_trace(go.Scatter(x=x, y=norm.pdf(x, mu, sd) * len(wr) * bins["size"], mode="lines", name="Normal fit",
+                             line=dict(color="black", dash="dot"), hoverinfo="skip"), row=1, col=1)
+
+    z, ordered, order = normal_scores(wr)
+    g_sorted, n_sorted = groups[order], names[order]
+    for g in shown + (["other groups"] if len(counts) > max_groups else []):
+        mask = np.isin(g_sorted, shown, invert=True) if g == "other groups" else g_sorted == g
+        fig.add_trace(go.Scattergl(x=z[mask], y=ordered[mask], mode="markers", name=g, legendgroup=g,
+                                   showlegend=g == "other groups", marker=dict(color=color.get(g, "lightgray"), size=5),
+                                   text=n_sorted[mask], hovertemplate="%{text}<br>w r = %{y:.4g}<br>z = %{x:.2f}<extra></extra>"),
+                      row=1, col=2)
+    a, b = qq_line(z, ordered)
+    ends = np.array([z[0], z[-1]])
+    fig.add_trace(go.Scatter(x=ends, y=a + b * ends, mode="lines", name=f"Quartile line (slope {b:.3g})",
+                             line=dict(color="black", dash="dash"), hoverinfo="skip"), row=1, col=2)
+    fig.add_trace(go.Scatter(x=ends, y=ends, mode="lines", name="Standard normal (slope 1)",
+                             line=dict(color="gray", dash="dot"), hoverinfo="skip"), row=1, col=2)
+    fig.update_layout(
+        barmode="overlay", height=520,
+        title=f"Weighted residuals of iteration {iiter}: n = {len(wr)}, mean {mu:.3g}, std {sd:.3g}"
+              + (f"; the {max_groups} largest of {len(counts)} {grp} groups shown by colour" if len(counts) > max_groups else ""),
+        legend=dict(orientation="h", y=-0.15, yanchor="top"),
+    )
+    fig.update_xaxes(title_text="Weighted residual", row=1, col=1)
+    fig.update_yaxes(title_text="Count", row=1, col=1)
+    fig.update_xaxes(title_text="Standard normal quantile", row=1, col=2)
+    fig.update_yaxes(title_text="Weighted residual", row=1, col=2)
     return fig

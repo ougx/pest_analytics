@@ -149,3 +149,23 @@ def stats_table(stats):
             align="center"
         )
     )
+
+
+def normal_scores(values):
+    """
+    Q-Q plot points of values against the standard normal: (theoretical quantiles, sorted values, order),
+    with Blom plotting positions (i - 3/8) / (n + 1/4). order sorts the original values.
+    """
+    from scipy.stats import norm
+    v = np.asarray(values, dtype=float)
+    order = np.argsort(v)
+    n = len(v)
+    return norm.ppf((np.arange(1, n + 1) - 0.375) / (n + 0.25)), v[order], order
+
+
+def qq_line(theoretical, ordered):
+    """intercept and slope of the line through the first and third quartiles (as R's qqline)"""
+    q1, q3 = np.quantile(ordered, [0.25, 0.75])
+    z1, z3 = np.quantile(theoretical, [0.25, 0.75])
+    slope = (q3 - q1) / (z3 - z1)
+    return q1 - slope * z1, slope

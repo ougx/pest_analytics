@@ -50,3 +50,25 @@ def test_css_section_on_parameter_sensitivity(pest_data):
     assert "68 of 132 parameters without sensitivity" in fig.layout.title.text
     bars = [t for t in fig.data if t.type == "bar"]
     assert {t.name for t in bars} == {"head", "flow"} and len(bars[0].y) == 132
+
+
+def test_normal_scores_and_qq_line():
+    import numpy as np
+    from plotting import normal_scores, qq_line
+    rng = np.random.default_rng(0)
+    values = 3 + 2 * rng.standard_normal(4000)
+    z, ordered, order = normal_scores(values)
+    assert (np.diff(ordered) >= 0).all() and np.array_equal(values[order], ordered)
+    assert abs(z.mean()) < 1e-9 and z[0] < -3 < 3 < z[-1]
+    a, b = qq_line(z, ordered)
+    assert abs(a - 3) < 0.1 and abs(b - 2) < 0.1
+
+
+def test_residual_distribution_section(pest_data):
+    from unittest.mock import patch
+    with patch("module.resinfl.parse_zip", return_value=pest_data):
+        from module.resinfl import plot_distribution
+        fig = plot_distribution(1, {"pestpath": "x"}, "6", "obsgrp", "weight")
+    weighted = pest_data[2].weight.gt(0).sum()
+    assert f"n = {weighted}" in fig.layout.title.text
+    assert sum(len(t.x) for t in fig.data if t.type == "scattergl") == weighted
