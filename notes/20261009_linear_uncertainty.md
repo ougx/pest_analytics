@@ -60,3 +60,28 @@ the parameters with measurement sensitivity.
 - Corrections to numbers given in chat on 2026-10-09: φ/n "≈ 132" holds for jco.6; it is 223 for jco.1. Group
   means quoted then for jco.6 (sfrk 65% … ghbthick 46%) counted the parameters without sensitivity as zero
   reduction; the figures above leave them out, as the page now does.
+
+## Addendum (2026-10-09): what the run record says
+
+`03_rec_no_effect.py`, using the run-record parser added for review item 7.4 (`rec.py`, Run Record page).
+
+| Iteration | PEST "no effect on observations" | zero for weighted observations | zero in all rows | failed lambda tests |
+|---|---|---|---|---|
+| 1 | 1 | 1 | 1 | 0 / 144 |
+| 2 | 1 | 5 | 1 | 3 / 140 |
+| 3 | 12 | 27 | 12 | 35 / 140 |
+| 4 | 18 | 40 | 18 | 46 / 140 |
+| 5 | 32 | 71 | 32 | 72 / 140 |
+| 6 | 22 | 68 | 22 | 55 / 140 |
+
+- PEST's "no effect" list is exactly the set of columns that are zero in every row of the Jacobian,
+  prior-information rows included.
+- The other zero columns (39 of 71 at jco.5) are parameters that appear in prior-information equations:
+  those rows are computed from the equations, not from model runs, so they are never zero. These
+  parameters have no sensitivity to any observation either, so the record's "no effect" count
+  **understates** the problem.
+- Model runs failed more and more often: from iteration 3 on, 25–51% of the lambda tests failed. With
+  failed Jacobian runs forgiven, this supports (but still does not prove) failed derivative runs as the
+  cause of the zero columns.
+- Every iteration used exactly 132 Jacobian runs (one per adjustable parameter), so no runs were skipped:
+  the zero columns come from runs that were made.
