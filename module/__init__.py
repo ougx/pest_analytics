@@ -13,6 +13,7 @@ from . import (
     obsconf,
     cmpsetup,
     cmpfit,
+    cmppar,
     resinfl,
     resmap,
 )
@@ -44,6 +45,7 @@ sections = {
     "Compare": {
         "cmpsetup":cmpsetup,
         "cmpfit":cmpfit,
+        "cmppar":cmppar,
     },
 }
 

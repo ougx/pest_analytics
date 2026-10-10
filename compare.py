@@ -216,3 +216,39 @@ def fit_by_group(paired):
     out["dphi"] = out.phi_to - out.phi_from
     out["drmse"] = out.rmse_to - out.rmse_from
     return out.sort_values("phi_from", ascending=False)
+
+
+# ---------------------------------------------------------------------------
+# parameters: values of the two runs matched by name
+# ---------------------------------------------------------------------------
+
+def parameter_values(par, pars, iteration):
+    """
+    Parameter values of a run at an iteration (0: the initial values of the control file), with
+    transform, group and bounds; None if that iteration's .par file is missing.
+    """
+    p = par.set_index("parname")[["partrans", "pargrp", "parval0", "parlbnd", "parubnd"]].astype(
+        {"parval0": float, "parlbnd": float, "parubnd": float})
+    if iteration == 0:
+        value = p.parval0
+    elif iteration in pars:
+        value = pars[iteration].set_index("parname").parval.astype(float).reindex(p.index)
+    else:
+        return None
+    tol = 1e-6 * np.maximum(value.abs(), 1e-30)
+    return p.assign(value=value, at_bound=(value - p.parlbnd <= tol) | (p.parubnd - value <= tol))
+
+
+def paired_parameters(values_from, values_to):
+    """
+    Parameters in both runs: values, bounds flags and the change, log10(to/from) when both runs
+    log-transform the parameter (and the values are positive), (to - from)/|from| otherwise.
+    """
+    m = values_from.join(values_to, how="inner", lsuffix="_from", rsuffix="_to")
+    log = (m.partrans_from == "log") & (m.partrans_to == "log") & (m.value_from > 0) & (m.value_to > 0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        m["change"] = np.where(log, np.log10(m.value_to / m.value_from),
+                               (m.value_to - m.value_from) / m.value_from.abs())
+    m["log"] = log
+    m["pargrp"] = m.pargrp_to
+    return m

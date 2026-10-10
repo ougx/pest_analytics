@@ -113,7 +113,7 @@ def test_add_compare_run(variant, monkeypatch):
 
 def test_compare_section_registered():
     import module
-    assert list(module.sections["Compare"]) == ["cmpsetup", "cmpfit"]
+    assert list(module.sections["Compare"]) == ["cmpsetup", "cmpfit", "cmppar"]
 
 
 # ---------------------------------------------------------------------------
@@ -164,3 +164,39 @@ def test_fit_page_map_needs_a_site_grouping(variant):
     assert by_site.data and len(by_site.data[0].lat) > 100
     by_type = compare_fit(*args, "grpType", "None", [])[3]
     assert "group by a site column" in by_type.layout.annotations[0].text
+
+
+# ---------------------------------------------------------------------------
+# parameters: values matched by name (Parameter Changes page)
+# ---------------------------------------------------------------------------
+
+def test_parameter_values_and_pairing():
+    import pandas as pd
+    par = pd.DataFrame(dict(parname=["a", "b", "c"], partrans=["log", "none", "fixed"], pargrp="g",
+                            parval0=[1.0, 2.0, 5.0], parlbnd=[0.1, -10.0, 1.0], parubnd=[10.0, 10.0, 10.0]))
+    pars = {1: pd.DataFrame(dict(parname=["a", "b", "c"], parval=[10.0, 3.0, 5.0]))}
+    v0, v1 = compare.parameter_values(par, pars, 0), compare.parameter_values(par, pars, 1)
+    assert v1.at_bound.to_dict() == {"a": True, "b": False, "c": False}
+    assert compare.parameter_values(par, pars, 2) is None
+    m = compare.paired_parameters(v0, v1)
+    assert m.change.to_dict() == pytest.approx({"a": 1.0, "b": 0.5, "c": 0.0})
+    assert m.log.to_dict() == {"a": True, "b": False, "c": False}
+
+
+def test_parameter_page_matches_parameter_change(pest_data):
+    """initial values -> last iteration of the same run is what pst.parameter_change computes"""
+    from pst import parameter_change
+    from module.cmppar import compare_parameters, ADJUSTABLE
+    pars = pest_data[3]
+    summary, change, values = compare_parameters(1, REF, [dict(REF, name="same")], "0", compare.FORWARD,
+                                                 "0", compare.LAST, ADJUSTABLE)
+    shown = {y: x for t in change.data if t.type == "bar" for x, y in zip(t.x, t.y)}
+    expected = parameter_change(pars[max(pars)])
+    assert len(shown) == len(expected)
+    assert np.allclose([shown[p] for p in expected.index], expected.values)
+
+
+def test_parameter_page_same_run_has_no_change():
+    from module.cmppar import compare_parameters, ALL
+    out = compare_parameters(1, REF, [dict(REF, name="same")], "0", compare.FORWARD, compare.LAST, compare.LAST, ALL)
+    assert out[0].children.startswith("434 parameters compared") and "0 changed by more than" in out[0].children
