@@ -223,3 +223,44 @@ def step_agreement(net, step, moved=1e-6):
     df = pd.concat(dict(net=net, step=step), axis=1, join="inner")
     df = df[(df.step.abs() > moved) & (df.net != 0)]
     return int((np.sign(df.net) == np.sign(df.step)).sum()), len(df)
+
+
+def jacobian_step(pars, iiter):
+    """
+    The step of iteration N in the Jacobian's units, from .par.(N-1) (the initial values for N = 1) to
+    .par.N: log10(p_N / p_N-1) for log-transformed parameters, p_N - p_N-1 for untransformed ones.
+    None if those .par files are not available.
+    """
+    if iiter not in pars or (iiter > 1 and iiter - 1 not in pars):
+        return None
+    new = pars[iiter].set_index("parname")
+    new = new[new.partrans.isin(["log", "none"])]
+    p = new.parval.astype(float)
+    old = new.parval0.astype(float) if iiter == 1 else \
+        pars[iiter - 1].set_index("parname").parval.astype(float).reindex(new.index)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return pd.Series(np.where(new.partrans == "log", np.log10(p / old), p - old), index=new.index)
+
+
+def step_contribution(pull, step):
+    """
+    C_ij = P_ij * dp_j: the first-order reduction of target i's phi caused by parameter j's step
+    (P from get_obs_pull, dp from jacobian_step). Positive: the step lowered that target's phi.
+    The sum over all targets and parameters is the first-order reduction of phi, -grad(phi) . dp.
+    """
+    cols = pull.columns.intersection(step.index)
+    return pull[cols] * step[cols].values
+
+
+def linear_phi_change(obs, jco0, rei, step, weight_col="weight"):
+    """
+    Change of measurement phi (regularization excluded) predicted by the linearized model for a step:
+    residuals r - J dp, i.e. the first-order term of step_contribution plus the quadratic term |W J dp|^2.
+    """
+    o = obs[(obs[weight_col] > 0) & ~obs.obsgrp.astype(str).str.startswith("regul")]
+    o = o[o.obsname.isin(jco0.index)]
+    cols = jco0.columns.intersection(step.index)
+    r = rei.set_index("obsname").residual.reindex(o.obsname).fillna(0).values
+    w = o[weight_col].values
+    dr = jco0.loc[o.obsname, cols].values @ step[cols].values
+    return float(((w * (r - dr)) ** 2).sum() - ((w * r) ** 2).sum())

@@ -23,6 +23,9 @@ from pst import (
     get_obs_pull,
     get_par_tension,
     get_jco_rei,
+    jacobian_step,
+    step_contribution,
+    linear_phi_change,
 )
 
 
@@ -355,3 +358,31 @@ def test_iteration_step_real_data(pars_dict, par_df):
     step, at_bound = iteration_step(pars_dict, 6)
     assert len(step) == int(par_df.partrans.isin(["log", "none"]).sum())
     assert np.isfinite(step).all() and at_bound.dtype == bool
+
+
+def test_step_contribution_on_a_linear_model():
+    """for an exactly linear model, the contributions add up to the first-order change and
+    linear_phi_change is the true change of phi"""
+    rng = np.random.default_rng(1)
+    names, pnames = [f"o{i}" for i in range(8)], ["a", "b", "c"]
+    J = pd.DataFrame(rng.normal(size=(8, 3)), index=names, columns=pnames)
+    obs = pd.DataFrame(dict(obsname=names, weight=rng.uniform(0.5, 2, 8), obsgrp="head"))
+    measured = rng.normal(size=8)
+    p0, p1 = np.zeros(3), np.array([0.3, -0.2, 0.1])
+    model = lambda p: J.values @ p
+    rei = pd.DataFrame(dict(obsname=names, residual=measured - model(p0)))
+    phi = lambda p: float(((obs.weight.values * (measured - model(p))) ** 2).sum())
+    step = pd.Series(p1 - p0, index=pnames)
+    C = step_contribution(get_obs_pull(obs, J, rei, filter_insensitivetive=False), step)
+    first_order = -2 * (obs.weight.values ** 2 * rei.residual.values) @ (-J.values) @ step.values
+    assert C.values.sum() == pytest.approx(first_order)
+    assert linear_phi_change(obs, J, rei, step) == pytest.approx(phi(p1) - phi(p0))
+
+
+def test_jacobian_step_units():
+    base = pd.DataFrame(dict(parname=["a", "b", "c"], partrans=["log", "none", "fixed"],
+                             parval0=[1.0, 2.0, 5.0]))
+    pars = {1: base.assign(parval=[10.0, 2.5, 5.0]), 2: base.assign(parval=[100.0, 1.5, 5.0])}
+    assert jacobian_step(pars, 1).to_dict() == pytest.approx({"a": 1.0, "b": 0.5})     # from the initial values
+    assert jacobian_step(pars, 2).to_dict() == pytest.approx({"a": 1.0, "b": -1.0})    # absolute change for none
+    assert jacobian_step(pars, 3) is None

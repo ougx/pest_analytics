@@ -72,3 +72,14 @@ def test_residual_distribution_section(pest_data):
     weighted = pest_data[2].weight.gt(0).sum()
     assert f"n = {weighted}" in fig.layout.title.text
     assert sum(len(t.x) for t in fig.data if t.type == "scattergl") == weighted
+
+
+def test_step_contribution_section(pest_data):
+    from unittest.mock import patch
+    with patch("module.obsconf.parse_zip", return_value=pest_data):
+        from module.obsconf import get_contribution, plot_contribution
+        C, change, msg = get_contribution({"pestpath": "x"}, 1, "obsgrp", "Parameters")
+        fig = plot_contribution(1, {"pestpath": "x"}, "1", "obsgrp", "Parameters", "30", "30")
+    assert set(C.index) == {"head", "flow"} and C.shape[1] == 131   # .jco.1 has one all-zero column
+    assert change["actual"] == pytest.approx(change["linear"], rel=0.05)   # iteration 1 is nearly linear
+    assert "predicted by the linear model" in fig.layout.title.text

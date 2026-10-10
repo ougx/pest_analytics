@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from utils import parse_zip
 from plotting import message_figure
-from pst import get_obs_pull, get_par_tension, get_jco_rei, iteration_step, step_agreement
+from pst import get_obs_pull, get_par_tension, get_jco_rei, iteration_step, step_agreement, jacobian_step, step_contribution, linear_phi_change
 from layout import update_groups, update_weights, update_jco_iter, about, graph
 
 name = __name__.removeprefix("module.") + "-"
@@ -108,6 +108,17 @@ layout = html.Div([
     graph(name+"heat", message_figure(), fullname + " shares"),
     html.H4("Next Step Check", style={"margin-top": "20px"}),
     graph(name+"step", message_figure(), fullname + " next step"),
+    html.H4("Step Contribution", style={"margin-top": "20px"}),
+    dmc.Text("Which targets gained and which lost from each parameter's move in iteration N: C = P × Δp, the pull of "
+             ".jco.N times the step from .par.(N-1) to .par.N (log10 ratio for log-transformed parameters, the change "
+             "itself for untransformed ones), with the .pst weights. Positive (blue): the move lowered that group's φ, to "
+             "first order; red: it raised it. The row totals show which groups the step helped, the column totals which "
+             "parameter moves did the work. Shown for the groups and parameters with the largest total |C|. "
+             "The title compares the change of measurement φ that the linearized model predicts for the step "
+             "(residuals r - JΔp; for a full Gauss-Newton step this is half the first-order reduction) with the "
+             "actual change: a large gap means the model is far from linear over the step.",
+             size="sm", c="dimmed"),
+    graph(name+"contrib", message_figure(), fullname + " step contribution"),
     html.H4("Drill-down", style={"margin-top": "20px"}),
     dmc.Group([
         dmc.MultiSelect(id=name+"sankey-par", label="Parameters (click a bar or heatmap cell to add):",
@@ -667,4 +678,94 @@ def focus_sankey_figure(F, O, label, vsgrp, ntargets=5):
         height=max(650, 16 * len(keys)),
         title="Focus → parameters → other targets pulling the same parameters (red: wants increase, blue: wants decrease)",
     )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Step contribution: pull x step, by group and parameter
+# ---------------------------------------------------------------------------
+
+@callback(
+    Output(name+"contrib", "figure"),
+    Input( name+"update-plot", "n_clicks"),
+    State( "pest-data", "data"),
+    State( name+"iter", "value"),
+    State( name+"grp", "value"),
+    State( name+"plevel", "value"),
+    State( name+"npar", "value"),
+    State( name+"ngrp", "value"),
+)
+def plot_contribution(clicks, data, iiter, grp, plevel, npar, ngrp):
+    if not clicks or data is None or data == {}:
+        return message_figure()
+    C, change, msg = get_contribution(data, int(iiter), grp, plevel)
+    if C is None:
+        return message_figure(msg)
+    return contribution_figure(C, change, int(iiter), grp, int(npar), int(ngrp))
+
+
+def measurement_phi(rei, weight="weight"):
+    df = rei[(rei[weight] > 0) & ~rei.obsgrp.astype(str).str.startswith("regul")]
+    return float(((df[weight] * df.residual) ** 2).sum())
+
+
+def get_contribution(data, iiter, grp, plevel):
+    """
+    (contribution by observation group x parameter, {"linear": change of measurement phi predicted by the
+    linearized model, "actual": the change in the residual files}, message). Uses the .pst weights, as PEST did.
+    """
+    pst, par, obs, pars, reis, jcos = parse_zip(data, True, True, True)
+    if obs is None or not jcos or iiter not in jcos:
+        return None, None, "No .pst or .jco file found in zip file."
+    rei = get_jco_rei(reis, iiter)
+    step = jacobian_step(pars, iiter)
+    if rei is None or step is None:
+        return None, None, f"Needs .par.{iiter}, .par.{iiter - 1} and the residuals of iteration {iiter - 1}."
+    C = step_contribution(get_obs_pull(obs, jcos[iiter], rei), step)
+    if plevel == "Par Groups":
+        pargrp = par.set_index("parname").pargrp.reindex(C.columns).fillna("other")
+        C = C.T.groupby(pargrp.values).sum().T
+    C = group_pull(C, obs, grp)
+    change = {"linear": linear_phi_change(obs, jcos[iiter], rei, step)}
+    if iiter in reis and (iiter - 1) in reis:
+        change["actual"] = measurement_phi(reis[iiter]) - measurement_phi(reis[iiter - 1])
+    return C, change, ""
+
+
+def contribution_figure(C, change, iiter, grp, npar, ngrp):
+    pars_top = C.abs().sum().sort_values(ascending=False).index[:npar]
+    rows = C.abs().sum(axis=1).sort_values(ascending=False).index
+    shown = C.loc[rows[:ngrp]]
+    if len(rows) > ngrp:
+        shown = pd.concat([shown, C.loc[rows[ngrp:]].sum().to_frame("other groups").T])
+    Z = shown[pars_top]
+    lim = float(np.nanmax(np.abs(Z.values))) or 1.0
+    fig = make_subplots(rows=2, cols=2, column_widths=[0.82, 0.18], row_heights=[0.8, 0.2],
+                        shared_xaxes="columns", shared_yaxes="rows", horizontal_spacing=0.02, vertical_spacing=0.03)
+    fig.add_trace(go.Heatmap(
+        z=Z.values, x=list(Z.columns), y=list(Z.index), colorscale="RdBu", zmid=0, zmin=-lim, zmax=lim,
+        colorbar=dict(title=dict(text="φ reduction", side="right"), len=0.75, y=0.62),
+        hovertemplate="%{y} × %{x}<br>first-order φ reduction: %{z:.4g}<extra></extra>",
+    ), row=1, col=1)
+    row_total = shown.sum(axis=1)                 # over all parameters, not only those shown
+    fig.add_trace(go.Bar(
+        x=row_total, y=list(shown.index), orientation="h", marker_color=np.where(row_total >= 0, DOWN, UP),
+        hovertemplate="%{y}: %{x:.4g} over all parameters<extra></extra>", showlegend=False,
+    ), row=1, col=2)
+    col_total = C[pars_top].sum()                 # over all groups
+    fig.add_trace(go.Bar(
+        x=list(pars_top), y=col_total, marker_color=np.where(col_total >= 0, DOWN, UP),
+        hovertemplate="%{x}: %{y:.4g} over all groups<extra></extra>", showlegend=False,
+    ), row=2, col=1)
+    total = float(C.values.sum())
+    title = (f"Iteration {iiter}: first-order φ reduction from the step {total:.4g}; change of measurement φ "
+             f"predicted by the linear model {change['linear']:+.4g}")
+    if "actual" in change:
+        title += f", actual {change['actual']:+.4g}"
+    fig.update_layout(title=title, height=max(500, 22 * len(shown) + 300), margin=dict(l=10))
+    fig.update_yaxes(autorange="reversed", row=1, col=1)
+    fig.update_xaxes(tickangle=-90, row=2, col=1)
+    fig.update_xaxes(title_text="Group total", row=1, col=2)
+    fig.update_yaxes(title_text="Parameter total", row=2, col=1)
+    fig.update_xaxes(showticklabels=False, row=1, col=1)
     return fig
