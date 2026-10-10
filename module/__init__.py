@@ -12,6 +12,7 @@ from . import (
     obssim,
     obsconf,
     cmpsetup,
+    cmpfit,
     resinfl,
     resmap,
 )
@@ -42,6 +43,7 @@ sections = {
     },
     "Compare": {
         "cmpsetup":cmpsetup,
+        "cmpfit":cmpfit,
     },
 }
 

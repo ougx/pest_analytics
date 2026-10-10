@@ -14,6 +14,9 @@ import pandas as pd
 
 from utils import _data_source, check_data
 
+# direction of a comparison between the reference (loaded) run and another run
+FORWARD, BACKWARD = "Reference → other run", "Other run → reference"
+
 try:
     import makepst
     from makepst.diff import compare as _makepst_compare
@@ -124,3 +127,92 @@ def observation_group_summary(changes):
             value_changed=int((~np.isclose(both.obsval_from, both.obsval_to, rtol=1e-6)).sum()),
         ))
     return changes.groupby("obsgrp").apply(summarize, include_groups=False)
+
+
+# ---------------------------------------------------------------------------
+# fit: residuals of the two runs scored with the same weights
+# ---------------------------------------------------------------------------
+
+BEST, LAST = "Best (lowest φ)", "Last"
+WEIGHTS = ["Reference run's weights", "Other run's weights", "Each run's own weights", "weight_orig (obs.csv)"]
+
+
+def is_regul(groups):
+    return groups.astype(str).str.startswith("regul")
+
+
+def measurement_phi(rei, weight="weight"):
+    """sum of (w r)^2 of the weighted observations, regularization excluded"""
+    df = rei[(rei[weight] > 0) & ~is_regul(rei.obsgrp)]
+    return float(((df[weight] * df.residual) ** 2).sum())
+
+
+def pick_iteration(reis, choice):
+    """iteration number for a choice: BEST (lowest measurement phi, the run's own weights), LAST or a number"""
+    if not reis:
+        return None
+    if choice == LAST:
+        return max(reis)
+    if choice in (None, BEST):
+        return min(reis, key=lambda i: (measurement_phi(reis[i]), -i))
+    return int(choice) if int(choice) in reis else None
+
+
+def run_weights(choice, obs_ref, obs_other, to_is_ref):
+    """
+    (weights for the 'from' run, weights for the 'to' run), Series by obsname, for a WEIGHTS choice.
+    to_is_ref: True when the reference run is the 'to' side of the comparison.
+    """
+    ref = obs_ref.set_index("obsname")
+    other = obs_other.set_index("obsname")
+    if choice == WEIGHTS[1]:
+        return other.weight, other.weight
+    if choice == WEIGHTS[2]:
+        return (other.weight, ref.weight) if to_is_ref else (ref.weight, other.weight)
+    if choice == WEIGHTS[3]:
+        src = ref if "weight_orig" in ref.columns else other if "weight_orig" in other.columns else None
+        if src is None:
+            raise ValueError("neither run has a weight_orig column (from obs.csv)")
+        return src.weight_orig, src.weight_orig
+    return ref.weight, ref.weight
+
+
+def paired_residuals(rei_from, rei_to, w_from, w_to, groups):
+    """
+    Observations in both runs (regularization excluded): residual and weight of each side and the group.
+    groups: Series by obsname (e.g. a grouping column of the reference run's observation data).
+    """
+    a = rei_from[~is_regul(rei_from.obsgrp)].set_index("obsname").residual
+    b = rei_to[~is_regul(rei_to.obsgrp)].set_index("obsname").residual
+    names = a.index.intersection(b.index).intersection(groups.dropna().index)
+    return pd.DataFrame(dict(
+        residual_from=a.loc[names], residual_to=b.loc[names],
+        weight_from=w_from.reindex(names).fillna(0).astype(float),
+        weight_to=w_to.reindex(names).fillna(0).astype(float),
+        group=groups.loc[names].astype(str).str.lower(),
+    ))
+
+
+def fit_by_group(paired):
+    """
+    Per group: phi of each side (sum of (w r)^2 with its weights), and n, RMSE and mean residual
+    (measured units) over the observations weighted on both sides; changes are to - from.
+    """
+    p = paired.assign(phi_from=(paired.weight_from * paired.residual_from) ** 2,
+                      phi_to=(paired.weight_to * paired.residual_to) ** 2,
+                      r2_from=paired.residual_from ** 2, r2_to=paired.residual_to ** 2)
+    phi = p.groupby("group")[["phi_from", "phi_to"]].sum()
+    both = p[(p.weight_from > 0) & (p.weight_to > 0)]
+    g = both.groupby("group")
+    stats = pd.DataFrame(dict(
+        n=g.size(),
+        rmse_from=np.sqrt(g.r2_from.mean()),
+        rmse_to=np.sqrt(g.r2_to.mean()),
+        mean_from=g.residual_from.mean(),
+        mean_to=g.residual_to.mean(),
+    ))
+    out = phi.join(stats, how="left")
+    out["n"] = out.n.fillna(0).astype(int)
+    out["dphi"] = out.phi_to - out.phi_from
+    out["drmse"] = out.rmse_to - out.rmse_from
+    return out.sort_values("phi_from", ascending=False)

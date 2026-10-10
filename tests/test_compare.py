@@ -113,4 +113,54 @@ def test_add_compare_run(variant, monkeypatch):
 
 def test_compare_section_registered():
     import module
-    assert list(module.sections["Compare"]) == ["cmpsetup"]
+    assert list(module.sections["Compare"]) == ["cmpsetup", "cmpfit"]
+
+
+# ---------------------------------------------------------------------------
+# fit: both runs scored with the same weights (Fit Changes page)
+# ---------------------------------------------------------------------------
+
+def _rei(names, residuals, groups, weight=1.0):
+    import pandas as pd
+    return pd.DataFrame(dict(obsname=names, residual=residuals, obsgrp=groups, weight=weight))
+
+
+def test_paired_residuals_and_fit_by_group():
+    import pandas as pd
+    a = _rei(["a", "b", "c", "p"], [1.0, 2.0, 3.0, 9.0], ["h", "h", "f", "regul1"])
+    b = _rei(["a", "b", "d"], [0.5, 2.0, 1.0], ["h", "h", "f"])
+    w = pd.Series({"a": 1.0, "b": 2.0, "c": 1.0, "d": 1.0})
+    p = compare.paired_residuals(a, b, w, w, pd.Series({"a": "G1", "b": "G1", "c": "g2", "d": "g2"}))
+    assert sorted(p.index) == ["a", "b"] and set(p.group) == {"g1"}     # common, no regularization, lower case
+    f = compare.fit_by_group(p).loc["g1"]
+    assert (f.phi_from, f.phi_to, f.n) == (1 + 16, 0.25 + 16, 2)
+    assert f.rmse_from == pytest.approx(np.sqrt(2.5)) and f.drmse == pytest.approx(np.sqrt(2.125) - np.sqrt(2.5))
+
+
+def test_pick_iteration():
+    reis = {0: _rei(["a"], [3.0], ["h"]), 1: _rei(["a"], [1.0], ["h"]), 2: _rei(["a"], [2.0], ["h"])}
+    assert compare.pick_iteration(reis, compare.BEST) == 1
+    assert compare.pick_iteration(reis, compare.LAST) == 2
+    assert compare.pick_iteration(reis, "0") == 0 and compare.pick_iteration(reis, "7") is None
+
+
+def test_fit_page_scores_both_runs_with_the_same_weights(variant):
+    from module.cmpfit import compare_fit
+    args = (1, REF, [variant], "0", compare.FORWARD, compare.LAST, compare.LAST)
+    # same residuals in both runs: with shared weights phi does not change ...
+    summary, phi, rmse, _ = compare_fit(*args, compare.WEIGHTS[0], "obsgrp", "None", [])
+    assert "(+0.0%)" in summary[0].children
+    assert np.allclose(phi.data[0].y, phi.data[1].y)
+    # ... with each run's own weights it changes by the reweighting alone
+    summary, phi, _, _ = compare_fit(*args, compare.WEIGHTS[2], "obsgrp", "None", [])
+    assert "(+0.0%)" not in summary[0].children
+    assert not np.allclose(phi.data[0].y, phi.data[1].y)
+
+
+def test_fit_page_map_needs_a_site_grouping(variant):
+    from module.cmpfit import compare_fit
+    args = (1, REF, [variant], "0", compare.FORWARD, compare.LAST, compare.LAST, compare.WEIGHTS[0])
+    by_site = compare_fit(*args, "grpSite", "None", [])[3]
+    assert by_site.data and len(by_site.data[0].lat) > 100
+    by_type = compare_fit(*args, "grpType", "None", [])[3]
+    assert "group by a site column" in by_type.layout.annotations[0].text

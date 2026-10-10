@@ -12,7 +12,7 @@ import compare
 name = __name__.removeprefix("module.") + "-"
 fullname = "Setup Changes"
 
-FORWARD, BACKWARD = "Reference → other run", "Other run → reference"
+FORWARD, BACKWARD = compare.FORWARD, compare.BACKWARD
 
 md = dcc.Markdown('''
 
