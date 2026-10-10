@@ -74,6 +74,16 @@ def get_identifiability(obs, jco0, eigthresh, weight_col="weight", remove_regul=
     return pd.Series((V1**2).sum(axis=1), index=WJ.columns), V1.shape[1], len(s)
 
 
+def eigenvalue_ratios(obs, jco0, weight_col="weight", remove_regul=False):
+    """
+    Eigenvalues of J^T Q J relative to the largest, (s_k / s_1)^2 with s the singular values of
+    Q^1/2 J (sensitive parameters only), as a Series numbered from 1: the spectrum EIGTHRESH cuts.
+    """
+    WJ = get_weighted_jco(obs, jco0, True, remove_regul, weight_col)
+    s = np.linalg.svd(WJ, compute_uv=False)
+    return pd.Series((s / s[0]) ** 2, index=np.arange(1, len(s) + 1))
+
+
 def get_obsinflu(obs, jco0, filter_insensitivetive=True, weight_col="weight"):
     """
     Compute observation leverage using the hat matrix: H = J (J^T J)^-1 J^T

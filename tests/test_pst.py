@@ -6,6 +6,7 @@ for any valid PEST dataset.
 """
 import numpy as np
 import pandas as pd
+import pytest
 
 from pst import (
     get_weighted_jco,
@@ -15,6 +16,7 @@ from pst import (
     get_obscor,
     get_obsinflu,
     get_identifiability,
+    eigenvalue_ratios,
     jacobian_sensitivity,
     rank_sensitivity,
     get_obs_pull,
@@ -165,6 +167,13 @@ def test_identifiability_bounds_and_count(obs_df, jco_df):
     ident, nkept, nvec = get_identifiability(obs_df, jco_df, 0.0)
     assert nkept == nvec == len(ident)        # every direction kept: all parameters fully identifiable
     np.testing.assert_allclose(ident.values, 1.0, atol=1e-8)
+
+def test_eigenvalue_ratios_match_identifiability(obs_df, jco_df):
+    ratios = eigenvalue_ratios(obs_df, jco_df)
+    assert ratios.iloc[0] == pytest.approx(1.0) and ratios.is_monotonic_decreasing
+    for thresh in (1e-3, 1e-6):
+        assert get_identifiability(obs_df, jco_df, thresh)[1] == int((ratios >= thresh).sum())
+
 
 def test_identifiability_cutoff_on_eigenvalue_ratio():
     # weighted Jacobian with singular values 1 and 0.01 -> eigenvalue ratio 1e-4
