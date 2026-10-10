@@ -129,6 +129,24 @@ def rank_sensitivity(magnitude, signed, stype, n):
     return magnitude, symbols
 
 
+def composite_sensitivity(obs, jco0, group_col="obsgrp", weight_col="weight"):
+    """
+    Composite scaled sensitivity of every parameter in the Jacobian (Hill and Tiedeman, 2007):
+    CSS_j = sqrt(sum_i (w_i J_ij)^2 / n) over the n weighted observations (regularization excluded),
+    and each observation group's share of sum_i (w_i J_ij)^2 (shares add up to 1).
+    Returns a DataFrame by parameter: css, then one share column per group.
+    """
+    o = obs[(obs[weight_col] > 0) & ~obs.obsgrp.astype(str).str.startswith("regul")]
+    o = o[o.obsname.isin(jco0.index)]
+    wj2 = (jco0.loc[o.obsname].values * o[weight_col].values[:, None]) ** 2
+    total = wj2.sum(axis=0)
+    shares = pd.DataFrame(wj2, columns=jco0.columns).groupby(o[group_col].astype(str).values).sum().T
+    with np.errstate(invalid="ignore", divide="ignore"):
+        shares = shares.div(total, axis=0).fillna(0)
+    out = pd.concat([pd.Series(np.sqrt(total / max(len(o), 1)), index=jco0.columns, name="css"), shares], axis=1)
+    return out.sort_values("css", ascending=False)
+
+
 def get_obs_pull(obs, jco0, rei, weight_col="weight", filter_insensitivetive=True):
     """
     Pull of each observation on each parameter: P_ij = 2 w_i^2 r_i J_ij = -dphi_i/dp_j

@@ -5,8 +5,8 @@ import plotly.graph_objects as go
 from plotting import palettes, message_figure
 from utils import parse_zip, isiterable
 from plotly.subplots import make_subplots
-from pst import get_jco_rei, jacobian_sensitivity, rank_sensitivity
-from layout import update_weights, update_groups, about, graph
+from pst import get_jco_rei, jacobian_sensitivity, rank_sensitivity, composite_sensitivity
+from layout import update_weights, update_groups, update_jco_iter, about, graph
 
 name = __name__.removeprefix("module.") + "-"
 fullname = "Parameter Sensitivity"
@@ -68,7 +68,20 @@ layout = html.Div([
         mb=10,
         searchable=True,
     ),
-    graph(name+"plot", message_figure("Load data, then click 'Plot Sensitivity'."), fullname + "", style={"margin-bottom":"90px"}),
+    graph(name+"plot", message_figure("Load data, then click 'Plot Sensitivity'."), fullname + ""),
+    html.H4("All parameters: composite scaled sensitivity", style={"margin-top": "30px"}),
+    dmc.Text("CSS = sqrt(sum (w J)^2 / n) over the weighted observations, split by the share of each observation group "
+             "(the 'Grouped by' column above) in sum (w J)^2. Parameters with an all-zero Jacobian column have no sensitivity "
+             "in that Jacobian (e.g. a failed derivative run).", size="sm", c="dimmed"),
+    dmc.Group([
+        dmc.Select(id=name+"css-iter", label="Jacobian Iteration:", description=".jco.N, at iteration N-1 parameters",
+                   data=["1"], value="1", style={"width": "150px"}),
+        dmc.Select(id=name+"css-top", label="Parameters shown:", data=["30", "50", "100", "All"], value="All",
+                   style={"width": "150px"}),
+        dmc.Button("Plot CSS", id=name+"css-update", color="blue"),
+    ], mt=10, align="flex-end"),
+    graph(name+"css", message_figure("Load data, then click 'Plot CSS'."), "Composite Scaled Sensitivity",
+          style={"margin-bottom":"90px"}),
 ])
 
 @callback(
@@ -198,4 +211,73 @@ def plot(clicks, data, stype, otype, grp, nobs, palette, parselect, weight="weig
     #     row=1, col=2,
     # )
 
+    return fig
+
+
+@callback(
+    Output(name+"css-iter", "data"),
+    Output(name+"css-iter", "value"),
+    Input( "pest-data", "data"),
+)
+def fill_css_iterations(data):
+    return update_jco_iter(data)
+
+
+@callback(
+    Output(name+"css", "figure"),
+    Input( name+"css-update", "n_clicks"),
+    State( "pest-data", "data"),
+    State( name+"css-iter", "value"),
+    State( name+"grp", "value"),
+    State( name+"weight", "value"),
+    State( name+"css-top", "value"),
+)
+def plot_css(clicks, data, iiter, grp="obsgrp", weight="weight", top="All"):
+    if not clicks:
+        return message_figure("Load data, then click 'Plot CSS'.")
+    if not data:
+        return message_figure("No data loaded. Load data on the Upload Data page, then click 'Plot CSS'.")
+    pst, par, obs, pars, reis, jcos = parse_zip(data, False, False, True)
+    if obs is None or not jcos:
+        return message_figure("No .pst or .jco file found in zip file.")
+    grp = grp if grp in obs.columns else "obsgrp"
+    css = composite_sensitivity(obs, jcos[int(iiter)], grp, weight)
+    return css_figure(css, par, int(iiter), grp, None if top == "All" else int(top))
+
+
+def css_figure(css, par, iiter, grp, top=None):
+    nzero = int((css.css == 0).sum())
+    shown = css if top is None else css.head(top)
+    groups = [c for c in css.columns if c != "css"]
+    order = shown[groups].sum().sort_values(ascending=False).index
+    colors = px.colors.qualitative.Plotly
+    pargrp = par.set_index("parname").pargrp
+    fig = go.Figure()
+    for i, g in enumerate(order[:20]):
+        fig.add_trace(go.Bar(
+            x=shown.css * shown[g], y=shown.index, orientation="h", name=g, marker_color=colors[i % len(colors)],
+            customdata=list(zip(shown.css, 100 * shown[g], shown.index.map(pargrp))),
+            hovertemplate="%{y} (%{customdata[2]})<br>CSS %{customdata[0]:.3g}; " + g
+                          + ": %{customdata[1]:.1f}% of the squared sensitivity<extra></extra>",
+        ))
+    if len(order) > 20:
+        rest = shown[order[20:]].sum(axis=1)
+        fig.add_trace(go.Bar(x=shown.css * rest, y=shown.index, orientation="h", name="other groups",
+                             marker_color="lightgray", hoverinfo="skip"))
+    zero = shown[shown.css == 0]
+    if len(zero):
+        fig.add_trace(go.Scatter(x=[0] * len(zero), y=zero.index, mode="markers", name="No sensitivity",
+                                 marker=dict(symbol="x", color="gray", size=8),
+                                 hovertemplate="%{y}: all-zero Jacobian column<extra></extra>"))
+    fig.update_layout(
+        barmode="stack", height=18 * len(shown) + 220,
+        title=dict(text=f"Composite scaled sensitivity, .jco.{iiter}, split by {grp}"
+                        + (f"; {nzero} of {len(css)} parameters without sensitivity" if nzero else ""),
+                   yref="container", y=1, yanchor="top", pad=dict(t=15)),
+        xaxis=dict(title="CSS", side="top"),
+        yaxis=dict(title="Parameter", categoryorder="array", categoryarray=list(shown.index),
+                   range=[len(shown) - 0.5, -0.5]),
+        legend=dict(orientation="h", y=-30 / (18 * len(shown) + 220), yanchor="top"),
+        margin=dict(t=120),
+    )
     return fig

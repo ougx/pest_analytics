@@ -40,3 +40,13 @@ def test_index_page_loads_nothing_from_other_sites():
     sources = re.findall(r'<(?:script|link)[^>]+(?:src|href)="([^"]+)"', html)
     assert sources and not [s for s in sources if s.startswith(("http:", "https:", "//"))]
     assert "googletagmanager" not in html and "ethicalads" not in html
+
+
+def test_css_section_on_parameter_sensitivity(pest_data):
+    from unittest.mock import patch
+    with patch("module.parsen.parse_zip", return_value=pest_data):
+        from module.parsen import plot_css
+        fig = plot_css(1, {"pestpath": "x"}, "6", "obsgrp", "weight", "All")
+    assert "68 of 132 parameters without sensitivity" in fig.layout.title.text
+    bars = [t for t in fig.data if t.type == "bar"]
+    assert {t.name for t in bars} == {"head", "flow"} and len(bars[0].y) == 132

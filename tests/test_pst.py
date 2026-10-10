@@ -19,6 +19,7 @@ from pst import (
     eigenvalue_ratios,
     jacobian_sensitivity,
     rank_sensitivity,
+    composite_sensitivity,
     get_obs_pull,
     get_par_tension,
     get_jco_rei,
@@ -167,6 +168,18 @@ def test_identifiability_bounds_and_count(obs_df, jco_df):
     ident, nkept, nvec = get_identifiability(obs_df, jco_df, 0.0)
     assert nkept == nvec == len(ident)        # every direction kept: all parameters fully identifiable
     np.testing.assert_allclose(ident.values, 1.0, atol=1e-8)
+
+def test_composite_sensitivity():
+    obs = pd.DataFrame(dict(obsname=["h1", "h2", "f1", "z", "r"], weight=[1.0, 1.0, 2.0, 0.0, 9.0],
+                            obsgrp=["head", "head", "flow", "head", "regul_a"]))
+    jco = pd.DataFrame([[1.0, 0.0], [1.0, 0.0], [1.0, 0.0], [5.0, 5.0], [7.0, 7.0]],
+                       index=["h1", "h2", "f1", "z", "r"], columns=["a", "b"])
+    css = composite_sensitivity(obs, jco)
+    # a: (1 + 1 + 4) / 3 weighted, non-regularization observations; b: no sensitivity
+    assert css.css.to_dict() == pytest.approx({"a": np.sqrt(2.0), "b": 0.0})
+    assert css.loc["a", ["head", "flow"]].tolist() == pytest.approx([2 / 6, 4 / 6])
+    assert css.loc["b", ["head", "flow"]].tolist() == [0, 0]
+
 
 def test_eigenvalue_ratios_match_identifiability(obs_df, jco_df):
     ratios = eigenvalue_ratios(obs_df, jco_df)
