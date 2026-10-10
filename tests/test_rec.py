@@ -95,3 +95,33 @@ def test_page(tmp_path):
                 dst.writestr(item, src.read(item.filename))
     assert "No .rec file" in read_record(1, {"pestpath": str(without)})[0].children
     assert "No data loaded" in read_record(1, None)[0].children
+
+
+# ---------------------------------------------------------------------------
+# Regularisation page (review 7.5)
+# ---------------------------------------------------------------------------
+
+def test_regularisation_rows_use_pst_weights():
+    import pandas as pd
+    from module.regul import regularisation_rows
+    obs = pd.DataFrame(dict(obsname=["h1", "r1"], weight=[1.0, 2.0], obsgrp=["head", "regul_obs"]))
+    rei = pd.DataFrame(dict(obsname=["h1", "r1", "pi1", "pi2"], obsgrp=["head", "regul_obs", "regulhk", "regulhk"],
+                            residual=[5.0, 0.5, 0.2, -1.0], weight=[1.0, 2.0, 0.01, 0.01]))
+    prior = pd.DataFrame(dict(equation=["log(a) = 0", "log(a) - log(b) = 0"], weight_pst=[50.0, 10.0],
+                              group=["regulhk", "regulhk"]), index=["pi1", "pi2"])
+    rows = regularisation_rows(rei, obs, prior)
+    assert list(rows.index) == ["r1", "pi1", "pi2"]                       # measurements left out
+    assert rows.phi.tolist() == pytest.approx([1.0, 100.0, 100.0])        # (2*0.5)^2, (50*0.2)^2, (10*1)^2
+    assert rows.loc["pi1", "equation"] == "log(a) = 0"
+    assert regularisation_rows(rei, obs, None).loc["pi1", "phi"] == pytest.approx((0.01 * 0.2) ** 2)
+
+
+def test_regularisation_page():
+    from module.regul import plot
+    summary, tradeoff, groups, equations = plot(1, REF, "6", "20")
+    assert "70 prior-information equations" in summary.children
+    assert sum(len(t.x) for t in tradeoff.data if t.name.startswith("Iteration")) == 844 - 211
+    assert {t.name for t in groups.data} == {"regulhk", "regulvk", "regulss", "regulsy"}
+    assert sum(len(t.y) for t in equations.data) == 20
+    top = max((x, y) for t in equations.data for x, y in zip(t.x, t.y))
+    assert top[1] == "kdcr01"
