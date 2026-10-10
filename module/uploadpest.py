@@ -58,6 +58,8 @@ layout = html.Div([
         "Phi is calculated from the .rei files; the initial Phi is calculated from the .hp file or the .rei.0 file.",
         html.Br(),
         "Optional site.csv [site, lat, lon, ...] in the zip file locates the sites (e.g. grpSite values) on the Residual Map.",
+        html.Br(),
+        "Optional case.rec (the run record) in the zip file is read by the Run Record page.",
     ], size="sm", c="dimmed"),
     html.H4("Map layers (optional)", style={"margin-top": "30px"}),
     dcc.Upload(

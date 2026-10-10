@@ -1,6 +1,7 @@
 from . import (
     uploadpest,
     phiupdate,
+    runrec,
     tsplot,
     scatterplot,
     parupdate,
@@ -25,6 +26,7 @@ sections = {
     },
     "Fit": {
         "phiupdate":phiupdate,
+        "runrec":runrec,
         "scatterplot":scatterplot,
         "tsplot":tsplot,
         "resmap":resmap,
